@@ -5,7 +5,8 @@ import { FileImage, FileText, RefreshCcw, Trash2, UploadCloud } from "lucide-rea
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { SelectedDocument } from "@/components/document-extractor/types";
+import type { SelectedDocument } from "@/components/document-extractor/document-extractor-demo";
+import { ACCEPTED_FILE_TYPES } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type UploadDropzoneProps = {
@@ -85,7 +86,7 @@ export function UploadDropzone({
           Upload
         </Badge>
         <div className="space-y-1">
-          <CardTitle>Drop in a handwritten form</CardTitle>
+          <CardTitle>Drop in a document</CardTitle>
           <CardDescription>
             Drag and drop a JPG, PNG, WEBP, or PDF. You can also browse manually
             and swap the file at any time.
@@ -95,7 +96,7 @@ export function UploadDropzone({
       <CardContent className="space-y-4">
         <input
           ref={inputRef}
-          accept="image/jpeg,image/png,image/webp,application/pdf"
+          accept={ACCEPTED_FILE_TYPES}
           className="sr-only"
           disabled={disabled}
           onChange={handleInputChange}
@@ -121,8 +122,8 @@ export function UploadDropzone({
                 Drag and drop your form here
               </p>
               <p className="max-w-md text-sm leading-6 text-muted-foreground">
-                Ideal for scanned raffle cards, retailer signup sheets, and
-                handwritten customer forms.
+                Ideal for customer forms, worksheets, letters, surveys, receipts,
+                and handwritten notes.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2">

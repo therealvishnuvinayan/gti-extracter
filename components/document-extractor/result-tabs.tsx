@@ -1,6 +1,7 @@
 "use client";
 
-import { Copy, FileJson, Sheet, Trash2 } from "lucide-react";
+import { AlertCircle, Copy, FileJson, Sheet, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,9 +9,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NotesPanel } from "@/components/document-extractor/notes-panel";
 import { StructuredFieldsGrid } from "@/components/document-extractor/structured-fields-grid";
 import { TextPanel } from "@/components/document-extractor/text-panel";
-import type { ExtractionResult } from "@/components/document-extractor/types";
+import { toStructuredFieldViews, type ExtractionResult } from "@/lib/types";
 
 type ResultTabsProps = {
+  errorMessage?: string | null;
   result: ExtractionResult | null;
   isProcessing: boolean;
   onCopy: () => void;
@@ -20,6 +22,7 @@ type ResultTabsProps = {
 };
 
 export function ResultTabs({
+  errorMessage,
   result,
   isProcessing,
   onCopy,
@@ -33,7 +36,8 @@ export function ResultTabs({
         <CardHeader className="gap-3">
           <CardTitle>Extraction results</CardTitle>
           <CardDescription>
-            Simulating OCR, field mapping, translation, and confidence scoring.
+            Reading the document, mapping fields, translating content, and
+            validating the response shape.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -65,17 +69,36 @@ export function ResultTabs({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid-glow flex min-h-[360px] flex-col items-center justify-center rounded-[28px] border border-dashed border-border/80 bg-white/70 px-6 text-center">
-            <div className="max-w-md space-y-3">
-              <h3 className="text-xl font-semibold tracking-tight text-foreground">
-                Ready for a presentation-friendly result view
-              </h3>
-              <p className="text-sm leading-6 text-muted-foreground">
-                Upload a form and run the mock processing step to reveal
-                structured fields, transcription, translation, and reviewer notes.
-              </p>
+          {errorMessage ? (
+            <div className="animate-fade-up flex min-h-[360px] flex-col items-center justify-center rounded-[28px] border border-rose-100 bg-[linear-gradient(180deg,#fff7f7_0%,#fff_100%)] px-6 text-center">
+              <div className="mb-5 flex size-18 items-center justify-center rounded-[24px] bg-rose-50 shadow-sm">
+                <AlertCircle className="size-8 text-rose-600" />
+              </div>
+              <div className="max-w-md space-y-3">
+                <Badge variant="destructive" className="mx-auto w-fit">
+                  Extraction error
+                </Badge>
+                <h3 className="text-xl font-semibold tracking-tight text-foreground">
+                  The document could not be processed
+                </h3>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {errorMessage}
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="grid-glow flex min-h-[360px] flex-col items-center justify-center rounded-[28px] border border-dashed border-border/80 bg-white/70 px-6 text-center">
+              <div className="max-w-md space-y-3">
+                <h3 className="text-xl font-semibold tracking-tight text-foreground">
+                  Ready for a live extraction result
+                </h3>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Upload a document and run processing to reveal classification,
+                  key details, transcription, translation, and reviewer notes.
+                </p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -88,7 +111,7 @@ export function ResultTabs({
           <div className="space-y-2">
             <CardTitle>Extraction results</CardTitle>
             <CardDescription>
-              Mocked output for a handwritten raffle or retailer feedback form.
+              Live structured output returned from the extraction API.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -122,8 +145,14 @@ export function ResultTabs({
 
           <TabsContent value="structured">
             <StructuredFieldsGrid
+              documentTitle={result.documentTitle}
+              documentSummary={result.documentSummary}
+              documentType={result.documentType}
               detectedLanguage={result.detectedLanguage}
-              fields={result.structuredFields}
+              fields={toStructuredFieldViews(result.fields)}
+              keyDetails={result.keyDetails}
+              rawFields={result.fields}
+              missingCount={result.missingOrUnclearFields.length}
             />
           </TabsContent>
 
@@ -144,7 +173,10 @@ export function ResultTabs({
           </TabsContent>
 
           <TabsContent value="notes">
-            <NotesPanel notes={result.notes} />
+            <NotesPanel
+              confidenceNotes={result.confidenceNotes}
+              missingOrUnclearFields={result.missingOrUnclearFields}
+            />
           </TabsContent>
         </Tabs>
       </CardContent>

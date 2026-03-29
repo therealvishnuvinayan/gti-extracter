@@ -4,18 +4,32 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FilePreviewPanel } from "@/components/document-extractor/file-preview-panel";
 import { HeroSection } from "@/components/document-extractor/hero-section";
-import { MOCK_EXTRACTION_RESULT } from "@/components/document-extractor/mock-data";
 import { PageShell } from "@/components/document-extractor/page-shell";
 import { ProcessActionBar } from "@/components/document-extractor/process-action-bar";
 import { ResultTabs } from "@/components/document-extractor/result-tabs";
-import type {
-  ExtractionResult,
-  ProcessingStatus,
-  SelectedDocument,
-} from "@/components/document-extractor/types";
 import { UploadDropzone } from "@/components/document-extractor/upload-dropzone";
+import { downloadExtractionExcel } from "@/lib/export-excel";
+import { formatExtractionSummary } from "@/lib/format-extraction-summary";
+import { downloadExtractionJson } from "@/lib/export-json";
+import {
+  extractApiErrorSchema,
+  extractApiSuccessSchema,
+  resolveSupportedFileType,
+  type ExtractionResult,
+} from "@/lib/types";
 
-const PROCESSING_DELAY_MS = 1800;
+export type SelectedDocument = {
+  file: File;
+  kind: "image" | "pdf";
+  previewUrl?: string;
+};
+
+export type ProcessingStatus =
+  | "idle"
+  | "ready"
+  | "processing"
+  | "complete"
+  | "error";
 
 export function DocumentExtractorDemo() {
   const [selectedDocument, setSelectedDocument] = useState<SelectedDocument | null>(
@@ -23,8 +37,10 @@ export function DocumentExtractorDemo() {
   );
   const [result, setResult] = useState<ExtractionResult | null>(null);
   const [status, setStatus] = useState<ProcessingStatus>("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
-  const processingTimerRef = useRef<number | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
+  const resultsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     return () => {
@@ -36,20 +52,36 @@ export function DocumentExtractorDemo() {
 
   useEffect(() => {
     return () => {
-      if (processingTimerRef.current) {
-        window.clearTimeout(processingTimerRef.current);
+      if (requestAbortRef.current) {
+        requestAbortRef.current.abort();
       }
     };
   }, []);
 
-  const resetProcessingTimer = () => {
-    if (processingTimerRef.current) {
-      window.clearTimeout(processingTimerRef.current);
-      processingTimerRef.current = null;
+  useEffect(() => {
+    if (status === "complete" || status === "error") {
+      resultsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [status]);
+
+  const cancelInFlightRequest = () => {
+    if (requestAbortRef.current) {
+      requestAbortRef.current.abort();
+      requestAbortRef.current = null;
     }
   };
 
   const handleFileSelect = (file: File) => {
+    if (file.size === 0) {
+      toast.error("Empty file", {
+        description: "Please choose a non-empty image or PDF.",
+      });
+      return;
+    }
+
     const preparedFile = prepareSelectedDocument(file);
     if (!preparedFile) {
       toast.error("Unsupported file type", {
@@ -58,20 +90,22 @@ export function DocumentExtractorDemo() {
       return;
     }
 
-    resetProcessingTimer();
+    cancelInFlightRequest();
     setResult(null);
+    setErrorMessage(null);
     setStatus("ready");
     setSelectedDocument(preparedFile);
   };
 
   const handleRemoveFile = () => {
-    resetProcessingTimer();
+    cancelInFlightRequest();
     setSelectedDocument(null);
     setResult(null);
+    setErrorMessage(null);
     setStatus("idle");
   };
 
-  const handleProcess = () => {
+  const handleProcess = async () => {
     if (!selectedDocument) {
       toast.error("Select a document first", {
         description: "Choose a file so the demo has something to process.",
@@ -79,17 +113,62 @@ export function DocumentExtractorDemo() {
       return;
     }
 
-    resetProcessingTimer();
+    cancelInFlightRequest();
     setResult(null);
+    setErrorMessage(null);
     setStatus("processing");
 
-    processingTimerRef.current = window.setTimeout(() => {
-      setResult(MOCK_EXTRACTION_RESULT);
-      setStatus("complete");
-      toast.success("Mock extraction complete", {
-        description: "Structured fields and text panels are now visible.",
+    const abortController = new AbortController();
+    requestAbortRef.current = abortController;
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedDocument.file);
+
+      const response = await fetch("/api/extract", {
+        method: "POST",
+        body: formData,
+        signal: abortController.signal,
       });
-    }, PROCESSING_DELAY_MS);
+
+      const payload: unknown = await response.json().catch(() => null);
+      const successResult = extractApiSuccessSchema.safeParse(payload);
+
+      if (response.ok && successResult.success) {
+        setResult(successResult.data.data);
+        setStatus("complete");
+        toast.success("Extraction complete", {
+          description: "Structured fields and document text are now available.",
+        });
+        return;
+      }
+
+      const errorResult = extractApiErrorSchema.safeParse(payload);
+      const message =
+        errorResult.success
+          ? errorResult.data.error.message
+          : "The document could not be processed. Please try again.";
+
+      setStatus("error");
+      setErrorMessage(message);
+      toast.error("Extraction failed", {
+        description: message,
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      const message =
+        "The request did not complete successfully. Please retry in a moment.";
+      setStatus("error");
+      setErrorMessage(message);
+      toast.error("Network issue", {
+        description: message,
+      });
+    } finally {
+      requestAbortRef.current = null;
+    }
   };
 
   const handleCopy = async () => {
@@ -98,9 +177,9 @@ export function DocumentExtractorDemo() {
     }
 
     try {
-      await navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+      await navigator.clipboard.writeText(formatExtractionSummary(result));
       toast.success("Results copied", {
-        description: "Mock extraction JSON copied to the clipboard.",
+        description: "A formatted extraction summary was copied to the clipboard.",
       });
     } catch {
       toast.error("Copy failed", {
@@ -114,25 +193,27 @@ export function DocumentExtractorDemo() {
       return;
     }
 
-    const blob = new Blob([JSON.stringify(result, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "mock-extraction-result.json";
-    anchor.click();
-    URL.revokeObjectURL(url);
-
+    downloadExtractionJson(result);
     toast.success("JSON downloaded", {
-      description: "A local mock result file has been generated.",
+      description: "The live extraction response has been downloaded.",
     });
   };
 
-  const handleDownloadExcel = () => {
-    toast.message("Excel export is not wired yet", {
-      description: "Keep the control visible for the demo, then back it later.",
-    });
+  const handleDownloadExcel = async () => {
+    if (!result) {
+      return;
+    }
+
+    try {
+      await downloadExtractionExcel(result);
+      toast.success("Excel downloaded", {
+        description: "Structured fields and notes have been exported to XLSX.",
+      });
+    } catch {
+      toast.error("Excel export failed", {
+        description: "The spreadsheet could not be generated in this browser.",
+      });
+    }
   };
 
   const handleClear = () => {
@@ -161,18 +242,22 @@ export function DocumentExtractorDemo() {
 
         <div className="flex flex-col gap-6 animate-fade-up [animation-delay:120ms]">
           <ProcessActionBar
+            errorMessage={errorMessage}
             hasFile={Boolean(selectedDocument)}
             onProcess={handleProcess}
             status={status}
           />
-          <ResultTabs
-            isProcessing={status === "processing"}
-            onClear={handleClear}
-            onCopy={handleCopy}
-            onDownloadExcel={handleDownloadExcel}
-            onDownloadJson={handleDownloadJson}
-            result={result}
-          />
+          <div ref={resultsRef}>
+            <ResultTabs
+              errorMessage={errorMessage}
+              isProcessing={status === "processing"}
+              onClear={handleClear}
+              onCopy={handleCopy}
+              onDownloadExcel={handleDownloadExcel}
+              onDownloadJson={handleDownloadJson}
+              result={result}
+            />
+          </div>
         </div>
       </section>
     </PageShell>
@@ -180,24 +265,22 @@ export function DocumentExtractorDemo() {
 }
 
 function prepareSelectedDocument(file: File): SelectedDocument | null {
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+  const fallbackMimeType = resolveSupportedFileType(file.name, file.type);
+
+  if (!fallbackMimeType) {
+    return null;
+  }
+
+  if (fallbackMimeType === "application/pdf") {
     return {
       file,
       kind: "pdf",
     };
   }
 
-  if (
-    file.type === "image/jpeg" ||
-    file.type === "image/png" ||
-    file.type === "image/webp"
-  ) {
-    return {
-      file,
-      kind: "image",
-      previewUrl: URL.createObjectURL(file),
-    };
-  }
-
-  return null;
+  return {
+    file,
+    kind: "image",
+    previewUrl: URL.createObjectURL(file),
+  };
 }

@@ -2,7 +2,7 @@ import Image from "next/image";
 import { Eye, FileImage, FileText, ScanSearch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { SelectedDocument } from "@/components/document-extractor/types";
+import type { SelectedDocument } from "@/components/document-extractor/document-extractor-demo";
 
 type FilePreviewPanelProps = {
   file: SelectedDocument | null;
@@ -18,7 +18,7 @@ export function FilePreviewPanel({ file }: FilePreviewPanelProps) {
         <div className="space-y-1">
           <CardTitle>Document preview</CardTitle>
           <CardDescription>
-            Inspect the selected file before you simulate processing.
+            Inspect the selected file before sending it for extraction.
           </CardDescription>
         </div>
       </CardHeader>
@@ -52,9 +52,8 @@ export function FilePreviewPanel({ file }: FilePreviewPanelProps) {
                 PDF preview ready
               </h3>
               <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
-                Rendering the PDF is intentionally skipped for this demo. The
-                processing flow still behaves like a completed extraction
-                experience.
+                The preview stays lightweight, but the backend can still process
+                the uploaded PDF during extraction.
               </p>
               <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
                 <Badge variant="outline">{file.file.name}</Badge>
@@ -72,7 +71,7 @@ export function FilePreviewPanel({ file }: FilePreviewPanelProps) {
             </h3>
             <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
               Upload a handwritten image or PDF to see a local preview and then
-              reveal mocked extraction results.
+              populate the extraction panels with live results.
             </p>
             <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-border/70 bg-white/90 px-4 py-2 text-sm text-muted-foreground">
               <FileImage className="size-4 text-primary" />
