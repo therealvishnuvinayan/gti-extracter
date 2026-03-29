@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8fc;
+  --foreground: #162033;
+  --card: rgba(255, 255, 255, 0.92);
+  --card-foreground: #162033;
+  --primary: #1857ff;
+  --primary-foreground: #f8fbff;
+  --secondary: #eff3fb;
+  --secondary-foreground: #24324d;
+  --muted: #eef2f8;
+  --muted-foreground: #66748f;
+  --accent: #f2f6ff;
+  --accent-foreground: #15213a;
+  --border: rgba(131, 145, 170, 0.22);
+  --input: rgba(131, 145, 170, 0.18);
+  --ring: rgba(24, 87, 255, 0.35);
+  --success: #daf3e4;
+  --success-foreground: #166534;
+  --radius: 1.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --radius-sm: calc(var(--radius) - 0.5rem);
+  --radius-md: calc(var(--radius) - 0.25rem);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.5rem);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(97, 147, 255, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(133, 232, 211, 0.14), transparent 28%),
+    linear-gradient(180deg, #fbfcff 0%, #f7f8fc 100%);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-manrope), sans-serif;
+}
+
+::selection {
+  background: rgba(24, 87, 255, 0.16);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.45s ease-out both;
+}
+
+.surface {
+  background: rgba(255, 255, 255, 0.76);
+  backdrop-filter: blur(22px);
+  box-shadow:
+    0 18px 44px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.grid-glow {
+  background-image:
+    linear-gradient(rgba(152, 166, 190, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(152, 166, 190, 0.08) 1px, transparent 1px);
+  background-position: center;
+  background-size: 36px 36px;
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-shimmer::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.7),
+    transparent
+  );
+  animation: shimmer 1.6s infinite;
+}
