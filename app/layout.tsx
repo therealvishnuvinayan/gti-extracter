@@ -15,9 +15,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FormFlo",
+  title: "GTI Extractor",
   description:
-    "Frontend-only MVP for presenting handwritten form extraction results.",
+    "GTI Extractor for handwritten form extraction results.",
 };
 
 export default function RootLayout({
