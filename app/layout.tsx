@@ -3,9 +3,9 @@ import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "GTI Feedback Form Extractor",
+  title: "GTI Feedback Intelligence",
   description:
-    "Demo-ready GTI feedback form extraction from scanned PDFs to Excel.",
+    "GTI Feedback Intelligence tool for GTI",
 };
 
 export default function RootLayout({
