@@ -4,7 +4,10 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     "@napi-rs/canvas",
     "@napi-rs/canvas-darwin-arm64",
+    "@prisma/client",
     "pdfjs-dist",
+    "prisma",
+    "xlsx",
   ],
 };
 

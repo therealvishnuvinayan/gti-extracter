@@ -1,14 +1,70 @@
 import { NextResponse } from "next/server";
+import * as XLSX from "xlsx";
+import {
+  FEEDBACK_EXPORT_HEADERS,
+  serializeFeedbackRecord,
+  toFeedbackExportRow,
+} from "@/lib/feedback-records";
+import { getPrismaClient } from "@/lib/prisma";
 import { buildExportWorkbook } from "@/lib/template-export";
 import {
   extractApiErrorCodeSchema,
   extractionBatchResultSchema,
   resolveTemplateWorkbookType,
+  type BasicApiError,
   type ExtractApiErrorCode,
 } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+export async function GET() {
+  try {
+    assertDatabaseConfigured();
+
+    const prisma = getPrismaClient();
+    const records = await prisma.feedback.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    const serializedRecords = records.map(serializeFeedbackRecord);
+    const workbook = XLSX.utils.book_new();
+    const rows = serializedRecords.map(toFeedbackExportRow);
+    const worksheet = XLSX.utils.json_to_sheet(rows, {
+      header: [...FEEDBACK_EXPORT_HEADERS],
+    });
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Feedback Records");
+
+    const workbookBytes = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "buffer",
+    });
+
+    return new NextResponse(workbookBytes, {
+      status: 200,
+      headers: {
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": 'attachment; filename="gti-feedback-records.xlsx"',
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          message:
+            error instanceof Error
+              ? error.message
+              : "The database export could not be generated.",
+        },
+      } satisfies BasicApiError,
+      { status: 500 },
+    );
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -114,5 +170,13 @@ class ExportRouteError extends Error {
     super(message);
     this.status = status;
     this.code = extractApiErrorCodeSchema.parse(code);
+  }
+}
+
+function assertDatabaseConfigured() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error(
+      "DATABASE_URL is missing. Add your Neon connection string before exporting records.",
+    );
   }
 }

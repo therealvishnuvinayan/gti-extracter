@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { RecordsTable } from "@/components/records-table";
 import { FilePreviewPanel } from "@/components/document-extractor/file-preview-panel";
 import { HeroSection } from "@/components/document-extractor/hero-section";
 import { PageShell } from "@/components/document-extractor/page-shell";
@@ -9,16 +10,21 @@ import { ProcessActionBar } from "@/components/document-extractor/process-action
 import { ResultTabs } from "@/components/document-extractor/result-tabs";
 import { TemplateWorkbookPanel } from "@/components/document-extractor/template-workbook-panel";
 import { UploadDropzone } from "@/components/document-extractor/upload-dropzone";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { downloadExtractionExcel } from "@/lib/export-excel";
 import { formatExtractionSummary } from "@/lib/format-extraction-summary";
 import { downloadExtractionJson } from "@/lib/export-json";
 import {
+  basicApiErrorSchema,
   extractApiErrorSchema,
   extractApiSuccessSchema,
   resolveSupportedFileType,
   resolveTemplateWorkbookType,
   type ExtractionBatchResult,
   type ProcessedFeedbackDocument,
+  saveRecordsApiSuccessSchema,
 } from "@/lib/types";
 
 export type SelectedDocument = {
@@ -35,11 +41,18 @@ export type ProcessingStatus =
   | "complete"
   | "error";
 
+type DemoMode = "extract" | "records";
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
 export function DocumentExtractorDemo() {
+  const [mode, setMode] = useState<DemoMode>("extract");
   const [selectedDocuments, setSelectedDocuments] = useState<SelectedDocument[]>([]);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [result, setResult] = useState<ExtractionBatchResult | null>(null);
   const [status, setStatus] = useState<ProcessingStatus>("idle");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [lastSavedCount, setLastSavedCount] = useState(0);
+  const [recordsRefreshToken, setRecordsRefreshToken] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const requestAbortRef = useRef<AbortController | null>(null);
@@ -129,6 +142,8 @@ export function DocumentExtractorDemo() {
     if (addedCount > 0) {
       setResult(null);
       setErrorMessage(null);
+      setSaveStatus("idle");
+      setLastSavedCount(0);
       setStatus("ready");
       toast.success("Forms queued", {
         description: `${addedCount} file${addedCount === 1 ? "" : "s"} added to the extraction batch.`,
@@ -162,6 +177,8 @@ export function DocumentExtractorDemo() {
 
     setResult(null);
     setErrorMessage(null);
+    setSaveStatus("idle");
+    setLastSavedCount(0);
     setStatus(nextCount > 0 ? "ready" : "idle");
   };
 
@@ -170,6 +187,8 @@ export function DocumentExtractorDemo() {
     setSelectedDocuments([]);
     setResult(null);
     setErrorMessage(null);
+    setSaveStatus("idle");
+    setLastSavedCount(0);
     setStatus("idle");
     toast.message("Form queue cleared", {
       description: "The selected forms were removed. The template workbook stays loaded.",
@@ -238,14 +257,29 @@ export function DocumentExtractorDemo() {
 
         setResult(nextResult);
         setStatus("complete");
+        setSaveStatus("idle");
+        setLastSavedCount(0);
 
-        if (failedCount === 0) {
-          toast.success("Batch extraction complete", {
-            description: `${completedCount} file${completedCount === 1 ? "" : "s"} normalized and ready for export.`,
-          });
+        const savedCount = await saveBatchToDatabase(nextResult, {
+          notifyOnSuccess: false,
+        });
+
+        if (savedCount !== null) {
+          if (failedCount === 0) {
+            toast.success("Extraction complete", {
+              description: `${savedCount} record${savedCount === 1 ? "" : "s"} extracted and saved successfully.`,
+            });
+          } else {
+            toast.message("Extraction finished", {
+              description: `${completedCount} extracted • ${failedCount} need review • ${savedCount} saved`,
+            });
+          }
         } else {
-          toast.message("Batch extraction finished", {
-            description: `${completedCount} completed • ${failedCount} need review`,
+          toast.message("Extraction finished", {
+            description:
+              failedCount === 0
+                ? `${completedCount} extracted. Database save needs retry.`
+                : `${completedCount} extracted • ${failedCount} need review • save failed`,
           });
         }
 
@@ -329,67 +363,188 @@ export function DocumentExtractorDemo() {
     }
   };
 
+  const handleSaveToDatabase = async () => {
+    if (!result) {
+      return;
+    }
+
+    await saveBatchToDatabase(result, {
+      notifyOnSuccess: true,
+    });
+  };
+
   const handleClear = () => {
     cancelInFlightRequest();
     setSelectedDocuments([]);
     setResult(null);
     setErrorMessage(null);
+    setSaveStatus("idle");
+    setLastSavedCount(0);
     setStatus("idle");
     toast.message("Session cleared", {
       description: "Forms and results were removed. The template workbook stays available.",
     });
   };
 
+  const saveBatchToDatabase = async (
+    batch: ExtractionBatchResult,
+    options: { notifyOnSuccess: boolean },
+  ) => {
+    setSaveStatus("saving");
+
+    try {
+      const response = await fetch("/api/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(batch),
+      });
+
+      const payload: unknown = await response.json().catch(() => null);
+      const parsedSuccess = saveRecordsApiSuccessSchema.safeParse(payload);
+
+      if (response.ok && parsedSuccess.success) {
+        setSaveStatus("saved");
+        setLastSavedCount(parsedSuccess.data.savedCount);
+        setRecordsRefreshToken((current) => current + 1);
+
+        if (options.notifyOnSuccess) {
+          toast.success("Saved successfully", {
+            description: `${parsedSuccess.data.savedCount} record${parsedSuccess.data.savedCount === 1 ? "" : "s"} stored in the database.`,
+          });
+        }
+
+        return parsedSuccess.data.savedCount;
+      }
+
+      const parsedError = basicApiErrorSchema.safeParse(payload);
+      throw new Error(
+        parsedError.success
+          ? parsedError.data.error.message
+          : "The extracted batch could not be saved to the database.",
+      );
+    } catch (error) {
+      setSaveStatus("error");
+      setLastSavedCount(0);
+
+      if (options.notifyOnSuccess) {
+        toast.error("Database save failed", {
+          description:
+            error instanceof Error
+              ? error.message
+              : "The extracted batch could not be saved to the database.",
+        });
+      }
+
+      return null;
+    }
+  };
+
   return (
     <PageShell>
       <HeroSection />
 
-      <section className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="flex flex-col gap-6 animate-fade-up">
-          <UploadDropzone
-            disabled={status === "processing"}
-            files={selectedDocuments}
-            isDragActive={isDragActive}
-            onClearFiles={handleClearFiles}
-            onDragActiveChange={setIsDragActive}
-            onFilesSelect={handleFilesSelect}
-          />
-          <TemplateWorkbookPanel
-            disabled={status === "processing"}
-            file={templateFile}
-            onRemove={handleRemoveTemplate}
-            onSelect={handleTemplateSelect}
-          />
-          <FilePreviewPanel
-            disabled={status === "processing"}
-            files={selectedDocuments}
-            onRemoveFile={handleRemoveFile}
-            result={result}
-          />
-        </div>
+      <Tabs
+        className="animate-fade-up [animation-delay:80ms]"
+        onValueChange={(value) => setMode(value as DemoMode)}
+        value={mode}
+      >
+        <Card className="overflow-hidden">
+          <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">Single-page demo</Badge>
+                <Badge
+                  variant={
+                    saveStatus === "saved"
+                      ? "success"
+                      : saveStatus === "error"
+                        ? "destructive"
+                        : "outline"
+                  }
+                >
+                  {saveStatus === "saved"
+                    ? `${lastSavedCount} saved`
+                    : saveStatus === "saving"
+                      ? "Saving to database"
+                      : saveStatus === "error"
+                        ? "Save needs retry"
+                        : "Ready for extraction"}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  Switch between live extraction and saved records without leaving the page.
+                </p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Extract mode handles uploads and AI processing. Records mode reads
+                  persisted Prisma rows from Neon and exports the full dataset.
+                </p>
+              </div>
+            </div>
+            <TabsList>
+              <TabsTrigger value="extract">Extract</TabsTrigger>
+              <TabsTrigger value="records">Records</TabsTrigger>
+            </TabsList>
+          </CardContent>
+        </Card>
 
-        <div className="flex flex-col gap-6 animate-fade-up [animation-delay:120ms]">
-          <ProcessActionBar
-            documentCount={selectedDocuments.length}
-            errorMessage={errorMessage}
-            hasTemplate={Boolean(templateFile)}
-            onProcess={handleProcess}
-            status={status}
-          />
-          <div ref={resultsRef}>
-            <ResultTabs
-              errorMessage={errorMessage}
-              isProcessing={status === "processing"}
-              onClear={handleClear}
-              onCopyDocument={handleCopyDocument}
-              onDownloadExcel={handleDownloadExcel}
-              onDownloadJson={handleDownloadJson}
-              result={result}
-              templateReady={Boolean(templateFile)}
-            />
-          </div>
-        </div>
-      </section>
+        <TabsContent value="extract">
+          <section className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="flex flex-col gap-6 animate-fade-up">
+              <UploadDropzone
+                disabled={status === "processing" || saveStatus === "saving"}
+                files={selectedDocuments}
+                isDragActive={isDragActive}
+                onClearFiles={handleClearFiles}
+                onDragActiveChange={setIsDragActive}
+                onFilesSelect={handleFilesSelect}
+              />
+              <TemplateWorkbookPanel
+                disabled={status === "processing" || saveStatus === "saving"}
+                file={templateFile}
+                onRemove={handleRemoveTemplate}
+                onSelect={handleTemplateSelect}
+              />
+              <FilePreviewPanel
+                disabled={status === "processing" || saveStatus === "saving"}
+                files={selectedDocuments}
+                onRemoveFile={handleRemoveFile}
+                result={result}
+              />
+            </div>
+
+            <div className="flex flex-col gap-6 animate-fade-up [animation-delay:120ms]">
+              <ProcessActionBar
+                documentCount={selectedDocuments.length}
+                errorMessage={errorMessage}
+                hasTemplate={Boolean(templateFile)}
+                onProcess={handleProcess}
+                status={status}
+              />
+              <div ref={resultsRef}>
+                <ResultTabs
+                  errorMessage={errorMessage}
+                  isProcessing={status === "processing"}
+                  onClear={handleClear}
+                  onCopyDocument={handleCopyDocument}
+                  onDownloadExcel={handleDownloadExcel}
+                  onDownloadJson={handleDownloadJson}
+                  onSaveToDatabase={handleSaveToDatabase}
+                  result={result}
+                  saveStatus={saveStatus}
+                  templateReady={Boolean(templateFile)}
+                />
+              </div>
+            </div>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="records">
+          <RecordsTable isActive={mode === "records"} refreshToken={recordsRefreshToken} />
+        </TabsContent>
+      </Tabs>
     </PageShell>
   );
 }

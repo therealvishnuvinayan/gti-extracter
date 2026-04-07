@@ -17,8 +17,9 @@ export function HeroSection() {
             <p className="max-w-3xl text-base leading-7 text-muted-foreground sm:text-lg">
               Upload one or more scanned “Consumer Product Testing: Feedback Form”
               PDFs, render every page into images on the server, extract answers with
-              OpenAI vision, normalize them into a strict schema, and export rows that
-              follow the uploaded GTI workbook template.
+              OpenAI vision, normalize them into a strict schema, save the output to
+              Neon via Prisma, and export rows that follow the uploaded GTI workbook
+              template.
             </p>
           </div>
           <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center">
@@ -32,8 +33,9 @@ export function HeroSection() {
             </div>
           </div>
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Demo mode only. Files live in transient memory, there is no database or
-            auth layer, and refreshing the page clears the session.
+            Demo mode only. Extracted feedback now persists in the database for
+            review, but there is still no auth layer and the upload session itself
+            remains transient.
           </p>
         </div>
       </div>

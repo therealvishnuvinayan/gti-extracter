@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, Copy, FileJson, Sheet, Trash2 } from "lucide-react";
+import { AlertCircle, Copy, Database, FileJson, LoaderCircle, Sheet, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,9 +26,11 @@ type ResultTabsProps = {
   result: ExtractionBatchResult | null;
   isProcessing: boolean;
   templateReady: boolean;
+  saveStatus: "idle" | "saving" | "saved" | "error";
   onCopyDocument: (document: ProcessedFeedbackDocument) => void;
   onDownloadJson: () => void;
   onDownloadExcel: () => void;
+  onSaveToDatabase: () => void;
   onClear: () => void;
 };
 
@@ -37,9 +39,11 @@ export function ResultTabs({
   result,
   isProcessing,
   templateReady,
+  saveStatus,
   onCopyDocument,
   onDownloadJson,
   onDownloadExcel,
+  onSaveToDatabase,
   onClear,
 }: ResultTabsProps) {
   const [activeDocumentName, setActiveDocumentName] = useState<string>("");
@@ -125,16 +129,41 @@ export function ResultTabs({
   return (
     <Card className="overflow-hidden">
       <CardHeader className="gap-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
+        <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+          <div className="max-w-xl space-y-2">
             <CardTitle>Extraction results</CardTitle>
             <CardDescription>
               Batch output returned from the GTI extraction API, ready for review and
               export.
             </CardDescription>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid w-full gap-2 sm:grid-cols-2 2xl:w-auto 2xl:min-w-[28rem]">
             <Button
+              className="w-full justify-center"
+              disabled={!result || saveStatus === "saving" || saveStatus === "saved"}
+              onClick={onSaveToDatabase}
+              size="sm"
+              variant="outline"
+            >
+              {saveStatus === "saving" ? (
+                <>
+                  <LoaderCircle className="size-4 animate-spin" />
+                  Saving...
+                </>
+              ) : saveStatus === "saved" ? (
+                <>
+                  <Database className="size-4" />
+                  Saved
+                </>
+              ) : (
+                <>
+                  <Database className="size-4" />
+                  Save to database
+                </>
+              )}
+            </Button>
+            <Button
+              className="w-full justify-center"
               disabled={!activeDocument}
               onClick={() => activeDocument && onCopyDocument(activeDocument)}
               size="sm"
@@ -143,15 +172,15 @@ export function ResultTabs({
               <Copy className="size-4" />
               Copy active record
             </Button>
-            <Button onClick={onDownloadJson} size="sm" variant="outline">
+            <Button className="w-full justify-center" onClick={onDownloadJson} size="sm" variant="outline">
               <FileJson className="size-4" />
               Download JSON
             </Button>
-            <Button onClick={onDownloadExcel} size="sm" variant="outline">
+            <Button className="w-full justify-center" onClick={onDownloadExcel} size="sm" variant="outline">
               <Sheet className="size-4" />
               Download Excel
             </Button>
-            <Button onClick={onClear} size="sm" variant="ghost">
+            <Button className="w-full justify-center sm:col-span-2" onClick={onClear} size="sm" variant="ghost">
               <Trash2 className="size-4" />
               Clear
             </Button>
@@ -159,7 +188,7 @@ export function ResultTabs({
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-4">
           <SummaryCard
             label="Files processed"
             value={String(result.summary.totalFiles)}
@@ -184,6 +213,27 @@ export function ResultTabs({
                 : "Fallback workbook uses normalized headers"
             }
           />
+          <SummaryCard
+            label="Database"
+            value={
+              saveStatus === "saved"
+                ? "Saved"
+                : saveStatus === "saving"
+                  ? "Saving"
+                  : saveStatus === "error"
+                    ? "Retry"
+                    : "Pending"
+            }
+            note={
+              saveStatus === "saved"
+                ? "Extraction batch is persisted"
+                : saveStatus === "saving"
+                  ? "Writing feedback rows to Prisma"
+                  : saveStatus === "error"
+                    ? "Use the save button to retry"
+                    : "Auto-save runs after extraction"
+            }
+          />
         </div>
 
         <div className="space-y-3">
@@ -191,7 +241,7 @@ export function ResultTabs({
             <Badge variant="secondary">Select a processed file</Badge>
             {activeDocument ? <Badge variant="outline">{activeDocument.sourceFileName}</Badge> : null}
           </div>
-          <div className="grid gap-3 xl:grid-cols-2">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
             {result.documents.map((document) => {
               const isActive = document.sourceFileName === activeDocument?.sourceFileName;
 
@@ -354,9 +404,11 @@ function SummaryCard({
 }) {
   return (
     <Card className="rounded-[24px] border-border/70 bg-white/90 shadow-sm">
-      <CardContent className="space-y-2 p-5">
+      <CardContent className="flex min-h-[148px] flex-col space-y-2 p-5">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <p className="text-3xl font-semibold tracking-tight text-foreground">{value}</p>
+        <p className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          {value}
+        </p>
         <p className="text-sm leading-6 text-muted-foreground">{note}</p>
       </CardContent>
     </Card>

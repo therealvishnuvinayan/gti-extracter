@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  sourceFileName String?
+
+  cityAreaName         String?
+  milanoSkuTested      String?
+  cigaretteFilterType  String?
+  respondentType       String?
+  respondentAgeGroup   String?
+  smokingFrequency     String?
+
+  drawEffort             String?
+  smokeVolume            String?
+  smokeSmoothness        String?
+  tasteFlavorFeeling     String?
+  aftertasteFeeling      String?
+  filterComfortFeel      String?
+  burningSpeed           String?
+  ashQualityColor        String?
+  tasteFlavorConsistency String?
+
+  outerPackVisualAppeal           String?
+  packColourAttractiveness        String?
+  packQualityFeelOpeningStrength  String?
+
+  priceBlack  String?
+  priceGold   String?
+  priceCherry String?
+
+  overallSatisfactionRating String?
+  mainReasonForRating       String?
+  wouldBuy                  String?
+  wouldRecommend            String?
+
+  likedMost            String?
+  shouldImprove        String?
+  brandSmokedMostOften String?
+
+  confidenceNotes Json?
+  missingFields   Json?
+}
