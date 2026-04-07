@@ -8,20 +8,17 @@ import { HeroSection } from "@/components/document-extractor/hero-section";
 import { PageShell } from "@/components/document-extractor/page-shell";
 import { ProcessActionBar } from "@/components/document-extractor/process-action-bar";
 import { ResultTabs } from "@/components/document-extractor/result-tabs";
-import { TemplateWorkbookPanel } from "@/components/document-extractor/template-workbook-panel";
 import { UploadDropzone } from "@/components/document-extractor/upload-dropzone";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { downloadExtractionExcel } from "@/lib/export-excel";
 import { formatExtractionSummary } from "@/lib/format-extraction-summary";
-import { downloadExtractionJson } from "@/lib/export-json";
 import {
   basicApiErrorSchema,
   extractApiErrorSchema,
   extractApiSuccessSchema,
   resolveSupportedFileType,
-  resolveTemplateWorkbookType,
   type ExtractionBatchResult,
   type ProcessedFeedbackDocument,
   saveRecordsApiSuccessSchema,
@@ -47,7 +44,6 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 export function DocumentExtractorDemo() {
   const [mode, setMode] = useState<DemoMode>("extract");
   const [selectedDocuments, setSelectedDocuments] = useState<SelectedDocument[]>([]);
-  const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [result, setResult] = useState<ExtractionBatchResult | null>(null);
   const [status, setStatus] = useState<ProcessingStatus>("idle");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -146,7 +142,7 @@ export function DocumentExtractorDemo() {
       setLastSavedCount(0);
       setStatus("ready");
       toast.success("Forms queued", {
-        description: `${addedCount} file${addedCount === 1 ? "" : "s"} added to the extraction batch.`,
+        description: `${addedCount} file${addedCount === 1 ? "" : "s"} added for processing.`,
       });
     }
 
@@ -191,37 +187,14 @@ export function DocumentExtractorDemo() {
     setLastSavedCount(0);
     setStatus("idle");
     toast.message("Form queue cleared", {
-      description: "The selected forms were removed. The template workbook stays loaded.",
-    });
-  };
-
-  const handleTemplateSelect = (file: File) => {
-    const templateMimeType = resolveTemplateWorkbookType(file.name, file.type);
-
-    if (!templateMimeType) {
-      toast.error("Unsupported template", {
-        description: "Upload the GTI workbook in .xlsx format.",
-      });
-      return;
-    }
-
-    setTemplateFile(file);
-    toast.success("Template ready", {
-      description: "Excel exports will follow the uploaded workbook structure.",
-    });
-  };
-
-  const handleRemoveTemplate = () => {
-    setTemplateFile(null);
-    toast.message("Template removed", {
-      description: "Excel exports will fall back to normalized schema headers.",
+      description: "The selected forms were removed.",
     });
   };
 
   const handleProcess = async () => {
     if (selectedDocuments.length === 0) {
       toast.error("Select forms first", {
-        description: "Choose at least one file so the demo has something to process.",
+        description: "Choose at least one completed form to continue.",
       });
       return;
     }
@@ -266,20 +239,20 @@ export function DocumentExtractorDemo() {
 
         if (savedCount !== null) {
           if (failedCount === 0) {
-            toast.success("Extraction complete", {
-              description: `${savedCount} record${savedCount === 1 ? "" : "s"} extracted and saved successfully.`,
+            toast.success("Processing complete", {
+              description: `${savedCount} record${savedCount === 1 ? "" : "s"} processed and saved successfully.`,
             });
           } else {
-            toast.message("Extraction finished", {
-              description: `${completedCount} extracted • ${failedCount} need review • ${savedCount} saved`,
+            toast.message("Processing finished", {
+              description: `${completedCount} ready • ${failedCount} need review • ${savedCount} saved`,
             });
           }
         } else {
-          toast.message("Extraction finished", {
+          toast.message("Processing finished", {
             description:
               failedCount === 0
-                ? `${completedCount} extracted. Database save needs retry.`
-                : `${completedCount} extracted • ${failedCount} need review • save failed`,
+                ? `${completedCount} ready. Save needs retry.`
+                : `${completedCount} ready • ${failedCount} need review • save failed`,
           });
         }
 
@@ -294,7 +267,7 @@ export function DocumentExtractorDemo() {
 
       setStatus("error");
       setErrorMessage(message);
-      toast.error("Extraction failed", {
+      toast.error("Processing failed", {
         description: message,
       });
     } catch (error) {
@@ -318,7 +291,7 @@ export function DocumentExtractorDemo() {
     try {
       await navigator.clipboard.writeText(formatExtractionSummary(document));
       toast.success("Record copied", {
-        description: "The active normalized record was copied to the clipboard.",
+        description: "The selected record was copied to the clipboard.",
       });
     } catch {
       toast.error("Copy failed", {
@@ -327,31 +300,15 @@ export function DocumentExtractorDemo() {
     }
   };
 
-  const handleDownloadJson = () => {
-    if (!result) {
-      return;
-    }
-
-    downloadExtractionJson(result);
-    toast.success("JSON downloaded", {
-      description: "The full batch extraction response has been downloaded.",
-    });
-  };
-
   const handleDownloadExcel = async () => {
     if (!result) {
       return;
     }
 
     try {
-      await downloadExtractionExcel({
-        result,
-        templateFile,
-      });
+      await downloadExtractionExcel({ result });
       toast.success("Excel downloaded", {
-        description: templateFile
-          ? "Rows were written using the uploaded GTI workbook template."
-          : "A fallback workbook was generated using the normalized schema headers.",
+        description: "The latest records have been exported to Excel.",
       });
     } catch (error) {
       toast.error("Excel export failed", {
@@ -382,7 +339,7 @@ export function DocumentExtractorDemo() {
     setLastSavedCount(0);
     setStatus("idle");
     toast.message("Session cleared", {
-      description: "Forms and results were removed. The template workbook stays available.",
+      description: "Forms and results were removed.",
     });
   };
 
@@ -411,7 +368,7 @@ export function DocumentExtractorDemo() {
 
         if (options.notifyOnSuccess) {
           toast.success("Saved successfully", {
-            description: `${parsedSuccess.data.savedCount} record${parsedSuccess.data.savedCount === 1 ? "" : "s"} stored in the database.`,
+            description: `${parsedSuccess.data.savedCount} record${parsedSuccess.data.savedCount === 1 ? "" : "s"} saved successfully.`,
           });
         }
 
@@ -422,18 +379,18 @@ export function DocumentExtractorDemo() {
       throw new Error(
         parsedError.success
           ? parsedError.data.error.message
-          : "The extracted batch could not be saved to the database.",
+          : "The records could not be saved right now.",
       );
     } catch (error) {
       setSaveStatus("error");
       setLastSavedCount(0);
 
       if (options.notifyOnSuccess) {
-        toast.error("Database save failed", {
+        toast.error("Save failed", {
           description:
             error instanceof Error
               ? error.message
-              : "The extracted batch could not be saved to the database.",
+              : "The records could not be saved right now.",
         });
       }
 
@@ -454,7 +411,7 @@ export function DocumentExtractorDemo() {
           <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">Single-page demo</Badge>
+                <Badge variant="secondary">Feedback Workspace</Badge>
                 <Badge
                   variant={
                     saveStatus === "saved"
@@ -467,24 +424,24 @@ export function DocumentExtractorDemo() {
                   {saveStatus === "saved"
                     ? `${lastSavedCount} saved`
                     : saveStatus === "saving"
-                      ? "Saving to database"
+                      ? "Saving records"
                       : saveStatus === "error"
                         ? "Save needs retry"
-                        : "Ready for extraction"}
+                        : "Ready for processing"}
                 </Badge>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  Switch between live extraction and saved records without leaving the page.
+                  Manage incoming forms and saved records in one place.
                 </p>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  Extract mode handles uploads and AI processing. Records mode reads
-                  persisted Prisma rows from Neon and exports the full dataset.
+                  Use Processing to capture new feedback forms and Records to review
+                  saved results and export the latest data.
                 </p>
               </div>
             </div>
             <TabsList>
-              <TabsTrigger value="extract">Extract</TabsTrigger>
+              <TabsTrigger value="extract">Processing</TabsTrigger>
               <TabsTrigger value="records">Records</TabsTrigger>
             </TabsList>
           </CardContent>
@@ -501,12 +458,6 @@ export function DocumentExtractorDemo() {
                 onDragActiveChange={setIsDragActive}
                 onFilesSelect={handleFilesSelect}
               />
-              <TemplateWorkbookPanel
-                disabled={status === "processing" || saveStatus === "saving"}
-                file={templateFile}
-                onRemove={handleRemoveTemplate}
-                onSelect={handleTemplateSelect}
-              />
               <FilePreviewPanel
                 disabled={status === "processing" || saveStatus === "saving"}
                 files={selectedDocuments}
@@ -519,7 +470,6 @@ export function DocumentExtractorDemo() {
               <ProcessActionBar
                 documentCount={selectedDocuments.length}
                 errorMessage={errorMessage}
-                hasTemplate={Boolean(templateFile)}
                 onProcess={handleProcess}
                 status={status}
               />
@@ -530,11 +480,9 @@ export function DocumentExtractorDemo() {
                   onClear={handleClear}
                   onCopyDocument={handleCopyDocument}
                   onDownloadExcel={handleDownloadExcel}
-                  onDownloadJson={handleDownloadJson}
                   onSaveToDatabase={handleSaveToDatabase}
                   result={result}
                   saveStatus={saveStatus}
-                  templateReady={Boolean(templateFile)}
                 />
               </div>
             </div>

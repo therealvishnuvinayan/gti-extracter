@@ -32,13 +32,12 @@ export function FilePreviewPanel({
     <Card className="overflow-hidden">
       <CardHeader className="gap-3">
         <Badge variant="secondary" className="w-fit bg-white/80">
-          Queue
+          Selected Files
         </Badge>
         <div className="space-y-1">
           <CardTitle>Selected forms</CardTitle>
           <CardDescription>
-            Review the upload queue before sending it through the GTI extraction
-            pipeline.
+            Review the forms before processing.
           </CardDescription>
         </div>
       </CardHeader>
@@ -48,7 +47,7 @@ export function FilePreviewPanel({
             <div className="flex items-center justify-between border-b border-border/70 bg-white/90 px-4 py-3 text-sm text-muted-foreground">
               <div className="inline-flex items-center gap-2">
                 <Eye className="size-4 text-primary" />
-                Local image preview
+                Image preview
               </div>
               <Badge variant="secondary">{singleImagePreview.file.type || "image/*"}</Badge>
             </div>
@@ -141,15 +140,14 @@ export function FilePreviewPanel({
               <ScanSearch className="size-8 text-primary" />
             </div>
             <h3 className="text-xl font-semibold tracking-tight text-foreground">
-              Nothing queued yet
+              No files added yet
             </h3>
             <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
-              Add one or more scanned forms to populate the queue and review their
-              extraction status after processing.
+              Add one or more forms to review them here before processing.
             </p>
             <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-border/70 bg-white/90 px-4 py-2 text-sm text-muted-foreground">
               <FileText className="size-4 text-primary" />
-              Optimized for scanned, multi-page PDF forms
+              Best with scanned, multi-page feedback forms
             </div>
           </div>
         )}

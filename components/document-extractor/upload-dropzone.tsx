@@ -96,10 +96,10 @@ export function UploadDropzone({
           Upload
         </Badge>
         <div className="space-y-1">
-          <CardTitle>Drop in feedback forms</CardTitle>
+          <CardTitle>Add feedback forms</CardTitle>
           <CardDescription>
-            Add one or more scanned PDFs. Images are supported for edge cases, but
-            PDFs are the primary path.
+            Add one or more completed forms. Scanned PDFs are the primary format,
+            and images are supported when needed.
           </CardDescription>
         </div>
       </CardHeader>
@@ -130,11 +130,11 @@ export function UploadDropzone({
             </div>
             <div className="space-y-2">
               <p className="text-lg font-semibold tracking-tight text-foreground">
-                Drag and drop GTI forms here
+                Drag and drop files here
               </p>
               <p className="max-w-md text-sm leading-6 text-muted-foreground">
-                Best results come from high-resolution scans of the full feedback
-                form, including faint ticks and handwritten comments.
+                For the best results, upload clear full-page scans that include all
+                marks, comments, and handwritten notes.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -155,7 +155,7 @@ export function UploadDropzone({
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-foreground">
-                    {files.length} file{files.length > 1 ? "s" : ""} ready for extraction
+                    {files.length} file{files.length > 1 ? "s" : ""} ready to process
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {formatFileSize(files.reduce((total, file) => total + file.file.size, 0))}
@@ -193,8 +193,7 @@ export function UploadDropzone({
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
               <p className="font-medium text-foreground">No feedback forms selected yet</p>
               <p>
-                The selected file count, types, and total size will appear here
-                before processing.
+                File count, format, and total size will appear here before processing.
               </p>
             </div>
           )}

@@ -12,7 +12,6 @@ import type { ProcessingStatus } from "@/components/document-extractor/document-
 
 type ProcessActionBarProps = {
   documentCount: number;
-  hasTemplate: boolean;
   errorMessage?: string | null;
   status: ProcessingStatus;
   onProcess: () => void;
@@ -20,7 +19,6 @@ type ProcessActionBarProps = {
 
 export function ProcessActionBar({
   documentCount,
-  hasTemplate,
   errorMessage,
   status,
   onProcess,
@@ -42,25 +40,22 @@ export function ProcessActionBar({
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={statusVariant}>{statusLabel}</Badge>
           <Badge variant="secondary" className="bg-white/80">
-            Server-side PDF rendering + OpenAI vision
-          </Badge>
-          <Badge variant={hasTemplate ? "success" : "outline"}>
-            {hasTemplate ? "GTI template loaded" : "Template optional"}
+            AI-powered form processing
           </Badge>
         </div>
         <div className="space-y-1">
-          <CardTitle>Process extraction batch</CardTitle>
+          <CardTitle>Process selected forms</CardTitle>
           <CardDescription>
-            Render each PDF page into an image, extract page-level evidence, and
-            normalize one strict GTI record per uploaded form.
+            Capture responses from each uploaded form and organize them into
+            structured records for review and export.
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="max-w-lg space-y-2 text-sm leading-6 text-muted-foreground">
           <p>
-            Queue as many forms as you need for the demo, then export the
-            aggregated output to Excel when the batch returns.
+            Process one form or many forms at once, then review the captured
+            records and export the latest results when ready.
           </p>
           <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white/80 px-4 py-2">
             {status === "complete" ? (
@@ -70,7 +65,7 @@ export function ProcessActionBar({
             ) : (
               <Sparkles className="size-4 text-primary" />
             )}
-            Refreshing the page clears the batch and any in-memory results.
+            Refreshing the page clears the current uploads and on-screen results.
           </div>
           {errorMessage ? (
             <p className="rounded-[18px] border border-rose-100 bg-rose-50/80 px-4 py-3 text-sm text-rose-700">
@@ -87,7 +82,7 @@ export function ProcessActionBar({
           {isProcessing ? (
             <>
               <LoaderCircle className="size-4 animate-spin" />
-              Processing batch...
+              Processing...
             </>
           ) : (
             <>
@@ -109,7 +104,7 @@ function getStatusLabel(status: ProcessingStatus) {
     case "processing":
       return "Processing";
     case "complete":
-      return "Batch loaded";
+      return "Results ready";
     case "error":
       return "Needs attention";
     default:

@@ -18,8 +18,7 @@ export function NotesPanel({ document }: NotesPanelProps) {
       <CardHeader className="gap-2">
         <CardTitle>Review notes</CardTitle>
         <CardDescription>
-          Confidence flags, missing fields, and extraction issues worth checking
-          before the Excel file is used.
+          Highlighted items worth checking before sharing or exporting this record.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -47,7 +46,7 @@ export function NotesPanel({ document }: NotesPanelProps) {
             ))
           ) : (
             <div className="rounded-[22px] border border-border/70 bg-secondary/35 p-4 text-sm text-muted-foreground">
-              No explicit confidence notes were returned for this file.
+              No review notes were added for this file.
             </div>
           )}
         </div>
@@ -67,7 +66,7 @@ export function NotesPanel({ document }: NotesPanelProps) {
             ))
           ) : (
             <div className="rounded-[22px] border border-border/70 bg-white/80 p-4 text-sm text-muted-foreground">
-              No missing-field warnings were returned for this file.
+              No missing or unclear answers were flagged for this file.
             </div>
           )}
         </div>

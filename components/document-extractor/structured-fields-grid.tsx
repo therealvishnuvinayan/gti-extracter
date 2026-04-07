@@ -81,7 +81,7 @@ export function StructuredFieldsGrid({ document }: StructuredFieldsGridProps) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={document.status === "completed" ? "success" : "destructive"}>
-          {document.status === "completed" ? "Extraction complete" : "Manual review needed"}
+          {document.status === "completed" ? "Processing complete" : "Needs review"}
         </Badge>
         <Badge variant="secondary">
           {document.pageCount} page{document.pageCount === 1 ? "" : "s"}
@@ -94,7 +94,7 @@ export function StructuredFieldsGrid({ document }: StructuredFieldsGridProps) {
         ) : null}
         {document.normalized.confidenceNotes.length > 0 ? (
           <Badge variant="outline">
-            {document.normalized.confidenceNotes.length} confidence note
+            {document.normalized.confidenceNotes.length} note
             {document.normalized.confidenceNotes.length === 1 ? "" : "s"}
           </Badge>
         ) : null}
@@ -111,8 +111,8 @@ export function StructuredFieldsGrid({ document }: StructuredFieldsGridProps) {
       {!hasNormalizedValues ? (
         <Card className="rounded-[24px] border-border/70 bg-white/90 shadow-sm">
           <CardContent className="p-5 text-sm leading-6 text-muted-foreground">
-            No reliable normalized field values were produced for this file. Use the
-            page trace and notes tabs to inspect what the scan exposed.
+            No reliable answers were captured for this file yet. Use the source pages
+            and notes tabs to review what needs attention.
           </CardContent>
         </Card>
       ) : null}
@@ -136,7 +136,7 @@ export function StructuredFieldsGrid({ document }: StructuredFieldsGridProps) {
                 </CardHeader>
                 <CardContent>
                   <p className="whitespace-pre-line text-base font-semibold tracking-tight text-foreground">
-                    {document.normalized[field] || "Blank"}
+                    {document.normalized[field] || "Not provided"}
                   </p>
                 </CardContent>
               </Card>

@@ -104,7 +104,7 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
     const didRefresh = await loadRecords();
     if (didRefresh) {
       toast.success("Records refreshed", {
-        description: "Latest saved feedback rows have been loaded from the database.",
+        description: "Latest saved feedback rows have been loaded.",
       });
     }
   };
@@ -124,7 +124,7 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
         throw new Error(
           parsedError.success
             ? parsedError.data.error.message
-            : "The database export could not be generated.",
+            : "The export could not be generated.",
         );
       }
 
@@ -137,14 +137,14 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
       URL.revokeObjectURL(url);
 
       toast.success("Excel downloaded", {
-        description: "All saved records were exported from the database.",
+        description: "All saved records were exported successfully.",
       });
     } catch (error) {
       toast.error("Export failed", {
         description:
           error instanceof Error
             ? error.message
-            : "The database export could not be generated.",
+            : "The export could not be generated.",
       });
     } finally {
       setIsDownloading(false);
@@ -159,7 +159,7 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">
                 <Database className="size-3.5" />
-                Neon / Prisma
+                Records
               </Badge>
               <Badge variant={records.length > 0 ? "success" : "outline"}>
                 {records.length} saved row{records.length === 1 ? "" : "s"}
@@ -167,8 +167,8 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
             </div>
             <CardTitle>Saved feedback records</CardTitle>
             <CardDescription>
-              Review persisted GTI records, inspect full details inline, and export
-              the entire database to Excel.
+              Review saved feedback records, inspect full details, and export the
+              latest data to Excel.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -201,8 +201,8 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
                 No saved records yet
               </h3>
               <p className="text-sm leading-6 text-muted-foreground">
-                Run an extraction in the Extract tab. Successful batches are saved
-                automatically and appear here.
+                Process feedback forms first. Saved records will appear here
+                automatically.
               </p>
             </div>
           </div>

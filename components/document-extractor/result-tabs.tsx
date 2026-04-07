@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, Copy, Database, FileJson, LoaderCircle, Sheet, Trash2 } from "lucide-react";
+import { AlertCircle, Copy, Database, LoaderCircle, Sheet, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,10 +25,8 @@ type ResultTabsProps = {
   errorMessage?: string | null;
   result: ExtractionBatchResult | null;
   isProcessing: boolean;
-  templateReady: boolean;
   saveStatus: "idle" | "saving" | "saved" | "error";
   onCopyDocument: (document: ProcessedFeedbackDocument) => void;
-  onDownloadJson: () => void;
   onDownloadExcel: () => void;
   onSaveToDatabase: () => void;
   onClear: () => void;
@@ -38,10 +36,8 @@ export function ResultTabs({
   errorMessage,
   result,
   isProcessing,
-  templateReady,
   saveStatus,
   onCopyDocument,
-  onDownloadJson,
   onDownloadExcel,
   onSaveToDatabase,
   onClear,
@@ -57,10 +53,9 @@ export function ResultTabs({
     return (
       <Card className="overflow-hidden">
         <CardHeader className="gap-3">
-          <CardTitle>Extraction results</CardTitle>
+          <CardTitle>Processing results</CardTitle>
           <CardDescription>
-            Rendering PDFs, extracting page evidence, normalizing GTI rows, and
-            preparing export-ready output.
+            Reviewing submitted forms and preparing structured records.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -85,9 +80,9 @@ export function ResultTabs({
     return (
       <Card>
         <CardHeader className="gap-3">
-          <CardTitle>Extraction results</CardTitle>
+          <CardTitle>Processing results</CardTitle>
           <CardDescription>
-            Batch output appears here after you process the selected GTI forms.
+            Results appear here after you process the selected forms.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -98,7 +93,7 @@ export function ResultTabs({
               </div>
               <div className="max-w-md space-y-3">
                 <Badge variant="destructive" className="mx-auto w-fit">
-                  Extraction error
+                  Processing error
                 </Badge>
                 <h3 className="text-xl font-semibold tracking-tight text-foreground">
                   The batch could not be processed
@@ -112,11 +107,11 @@ export function ResultTabs({
             <div className="grid-glow flex min-h-[360px] flex-col items-center justify-center rounded-[28px] border border-dashed border-border/80 bg-white/70 px-6 text-center">
               <div className="max-w-md space-y-3">
                 <h3 className="text-xl font-semibold tracking-tight text-foreground">
-                  Ready for GTI batch extraction
+                  Ready to process forms
                 </h3>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  Process the queued files to review normalized rows, page-level
-                  evidence, and export-ready workbook output.
+                  Process the selected files to review captured responses and export
+                  the latest results.
                 </p>
               </div>
             </div>
@@ -131,10 +126,9 @@ export function ResultTabs({
       <CardHeader className="gap-4">
         <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
           <div className="max-w-xl space-y-2">
-            <CardTitle>Extraction results</CardTitle>
+            <CardTitle>Processing results</CardTitle>
             <CardDescription>
-              Batch output returned from the GTI extraction API, ready for review and
-              export.
+              Review captured records, save them, or export the latest results.
             </CardDescription>
           </div>
           <div className="grid w-full gap-2 sm:grid-cols-2 2xl:w-auto 2xl:min-w-[28rem]">
@@ -158,7 +152,7 @@ export function ResultTabs({
               ) : (
                 <>
                   <Database className="size-4" />
-                  Save to database
+                  Save records
                 </>
               )}
             </Button>
@@ -171,10 +165,6 @@ export function ResultTabs({
             >
               <Copy className="size-4" />
               Copy active record
-            </Button>
-            <Button className="w-full justify-center" onClick={onDownloadJson} size="sm" variant="outline">
-              <FileJson className="size-4" />
-              Download JSON
             </Button>
             <Button className="w-full justify-center" onClick={onDownloadExcel} size="sm" variant="outline">
               <Sheet className="size-4" />
@@ -190,31 +180,22 @@ export function ResultTabs({
       <CardContent className="space-y-6">
         <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-4">
           <SummaryCard
-            label="Files processed"
+            label="Processed"
             value={String(result.summary.totalFiles)}
             note={`${result.summary.totalPages} total pages`}
           />
           <SummaryCard
-            label="Completed"
+            label="Ready"
             value={String(result.summary.completedFiles)}
-            note="Ready for export"
+            note="Records available for export"
           />
           <SummaryCard
             label="Needs review"
             value={String(result.summary.failedFiles)}
-            note="Files with incomplete normalization"
+            note="Forms that need a closer look"
           />
           <SummaryCard
-            label="Template"
-            value={templateReady ? "Ready" : "Optional"}
-            note={
-              templateReady
-                ? "GTI workbook will drive column order"
-                : "Fallback workbook uses normalized headers"
-            }
-          />
-          <SummaryCard
-            label="Database"
+            label="Saved"
             value={
               saveStatus === "saved"
                 ? "Saved"
@@ -226,19 +207,19 @@ export function ResultTabs({
             }
             note={
               saveStatus === "saved"
-                ? "Extraction batch is persisted"
+                ? "Results stored successfully"
                 : saveStatus === "saving"
-                  ? "Writing feedback rows to Prisma"
+                  ? "Saving records"
                   : saveStatus === "error"
-                    ? "Use the save button to retry"
-                    : "Auto-save runs after extraction"
+                    ? "Use save to try again"
+                    : "Records are saved automatically"
             }
           />
         </div>
 
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">Select a processed file</Badge>
+            <Badge variant="secondary">Select a record</Badge>
             {activeDocument ? <Badge variant="outline">{activeDocument.sourceFileName}</Badge> : null}
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
@@ -283,8 +264,8 @@ export function ResultTabs({
         {activeDocument ? (
           <Tabs defaultValue="normalized">
             <TabsList>
-              <TabsTrigger value="normalized">Normalized Record</TabsTrigger>
-              <TabsTrigger value="pages">Page Trace</TabsTrigger>
+              <TabsTrigger value="normalized">Structured Record</TabsTrigger>
+              <TabsTrigger value="pages">Source Pages</TabsTrigger>
               <TabsTrigger value="notes">Notes</TabsTrigger>
             </TabsList>
 
@@ -299,8 +280,8 @@ export function ResultTabs({
                     activeDocument.combinedTranscription ||
                     "No combined transcription was returned."
                   }
-                  description="Merged page-level transcription and visible field text used during normalization."
-                  title="Combined transcription"
+                  description="Text captured from the submitted form for verification."
+                  title="Captured text"
                 />
 
                 <div className="space-y-4">
@@ -317,7 +298,7 @@ export function ResultTabs({
                           ) : null}
                           {page.missingOrUnclearFields.length > 0 ? (
                             <Badge variant="outline">
-                              {page.missingOrUnclearFields.length} uncertainty flag
+                              {page.missingOrUnclearFields.length} review flag
                               {page.missingOrUnclearFields.length === 1 ? "" : "s"}
                             </Badge>
                           ) : null}
@@ -325,7 +306,7 @@ export function ResultTabs({
                         <div className="space-y-1">
                           <CardTitle>{page.pageSummary || `Page ${page.pageNumber}`}</CardTitle>
                           <CardDescription>
-                            Page-level evidence extracted before document normalization.
+                            Details captured from this page for review.
                           </CardDescription>
                         </div>
                       </CardHeader>
@@ -342,7 +323,6 @@ export function ResultTabs({
                                     <p className="text-sm font-semibold text-foreground">
                                       {item.label || "Unlabeled field"}
                                     </p>
-                                    <Badge variant="secondary">{item.answerType}</Badge>
                                     {item.isBlank ? (
                                       <Badge variant="outline">Blank on form</Badge>
                                     ) : null}
@@ -359,12 +339,12 @@ export function ResultTabs({
                                   ) : null}
                                   {item.evidence ? (
                                     <p className="text-xs text-muted-foreground">
-                                      Evidence: {item.evidence}
+                                      Observed on page: {item.evidence}
                                     </p>
                                   ) : null}
                                   {item.uncertainty ? (
                                     <p className="text-xs text-amber-700">
-                                      Uncertainty: {item.uncertainty}
+                                      Review note: {item.uncertainty}
                                     </p>
                                   ) : null}
                                 </div>
@@ -373,7 +353,7 @@ export function ResultTabs({
                           </div>
                         ) : (
                           <div className="rounded-[24px] border border-border/70 bg-secondary/35 p-4 text-sm text-muted-foreground">
-                            No field-level evidence was returned for this page.
+                            No answers were captured on this page.
                           </div>
                         )}
                       </CardContent>
