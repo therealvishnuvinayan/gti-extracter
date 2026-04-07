@@ -7,6 +7,7 @@ import {
   Database,
   Download,
   RefreshCcw,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   basicApiErrorSchema,
+  deleteRecordApiSuccessSchema,
   recordsApiSuccessSchema,
   type FeedbackRecord,
 } from "@/lib/types";
@@ -38,6 +40,7 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
   const requestAbortRef = useRef<AbortController | null>(null);
   const recordsCountRef = useRef(0);
 
@@ -151,6 +154,61 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
     }
   };
 
+  const handleDeleteRecord = async (record: FeedbackRecord) => {
+    const confirmed = window.confirm(
+      `Delete the saved record for "${record.sourceFileName ?? record.cityAreaName ?? "this form"}"?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingRecordId(record.id);
+
+    try {
+      const response = await fetch("/api/records", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: record.id }),
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      const parsedSuccess = deleteRecordApiSuccessSchema.safeParse(payload);
+
+      if (response.ok && parsedSuccess.success) {
+        setRecords((current) => {
+          const nextRecords = current.filter(
+            (currentRecord) => currentRecord.id !== parsedSuccess.data.id,
+          );
+          recordsCountRef.current = nextRecords.length;
+          return nextRecords;
+        });
+        setExpandedRecordId((current) =>
+          current === parsedSuccess.data.id ? null : current,
+        );
+        toast.success("Record deleted", {
+          description: "The selected record was removed.",
+        });
+        return;
+      }
+
+      const parsedError = basicApiErrorSchema.safeParse(payload);
+      throw new Error(
+        parsedError.success
+          ? parsedError.data.error.message
+          : "The record could not be deleted.",
+      );
+    } catch (error) {
+      toast.error("Delete failed", {
+        description:
+          error instanceof Error ? error.message : "The record could not be deleted.",
+      });
+    } finally {
+      setDeletingRecordId(null);
+    }
+  };
+
   return (
     <Card className="overflow-hidden animate-fade-up">
       <CardHeader className="gap-4">
@@ -225,6 +283,7 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
                       <th className="px-4 py-3 font-medium">Brand</th>
                       <th className="px-4 py-3 font-medium">Created At</th>
                       <th className="px-4 py-3 font-medium text-right">Details</th>
+                      <th className="px-4 py-3 font-medium text-right">Delete</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -254,6 +313,7 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
                             </td>
                             <td className="px-4 py-3 text-right">
                               <Button
+                                disabled={deletingRecordId === record.id}
                                 onClick={() =>
                                   setExpandedRecordId(isExpanded ? null : record.id)
                                 }
@@ -273,10 +333,23 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
                                 )}
                               </Button>
                             </td>
+                            <td className="px-4 py-3 text-right">
+                              <Button
+                                aria-label={`Delete ${record.sourceFileName ?? "record"}`}
+                                className="text-rose-600 hover:text-rose-700"
+                                disabled={deletingRecordId === record.id}
+                                onClick={() => void handleDeleteRecord(record)}
+                                size="sm"
+                                title="Delete record"
+                                variant="ghost"
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </td>
                           </tr>
                           {isExpanded ? (
                             <tr className="border-t border-border/70 bg-secondary/18">
-                              <td className="px-4 py-4" colSpan={7}>
+                              <td className="px-4 py-4" colSpan={8}>
                                 <ExpandedRecordDetails record={record} />
                               </td>
                             </tr>

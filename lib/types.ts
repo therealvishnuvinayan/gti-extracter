@@ -280,6 +280,11 @@ export const recordsApiSuccessSchema = z.object({
   records: z.array(feedbackRecordSchema),
 });
 
+export const deleteRecordApiSuccessSchema = z.object({
+  success: z.literal(true),
+  id: z.string(),
+});
+
 export type PageAnswerType = z.infer<typeof pageAnswerTypeSchema>;
 export type PageExtractedItem = z.infer<typeof pageExtractedItemSchema>;
 export type PageExtraction = z.infer<typeof pageExtractionSchema>;
