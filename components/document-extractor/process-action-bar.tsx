@@ -1,19 +1,27 @@
 import { CircleCheckBig, LoaderCircle, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import type { ProcessingStatus } from "@/components/document-extractor/document-extractor-demo";
 
 type ProcessActionBarProps = {
-  hasFile: boolean;
+  documentCount: number;
+  hasTemplate: boolean;
   errorMessage?: string | null;
   status: ProcessingStatus;
   onProcess: () => void;
 };
 
 export function ProcessActionBar({
+  documentCount,
+  hasTemplate,
   errorMessage,
-  hasFile,
   status,
   onProcess,
 }: ProcessActionBarProps) {
@@ -34,22 +42,25 @@ export function ProcessActionBar({
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={statusVariant}>{statusLabel}</Badge>
           <Badge variant="secondary" className="bg-white/80">
-            Server-side OpenAI
+            Server-side PDF rendering + OpenAI vision
+          </Badge>
+          <Badge variant={hasTemplate ? "success" : "outline"}>
+            {hasTemplate ? "GTI template loaded" : "Template optional"}
           </Badge>
         </div>
         <div className="space-y-1">
-          <CardTitle>Process document</CardTitle>
+          <CardTitle>Process extraction batch</CardTitle>
           <CardDescription>
-            Send the selected file to the extraction route and render validated
-            structured results in the current UI.
+            Render each PDF page into an image, extract page-level evidence, and
+            normalize one strict GTI record per uploaded form.
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="max-w-lg space-y-2 text-sm leading-6 text-muted-foreground">
           <p>
-            The file remains selected locally so you can retry processing,
-            replace it, or export the returned result.
+            Queue as many forms as you need for the demo, then export the
+            aggregated output to Excel when the batch returns.
           </p>
           <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white/80 px-4 py-2">
             {status === "complete" ? (
@@ -59,7 +70,7 @@ export function ProcessActionBar({
             ) : (
               <Sparkles className="size-4 text-primary" />
             )}
-            Refreshing the page clears the session.
+            Refreshing the page clears the batch and any in-memory results.
           </div>
           {errorMessage ? (
             <p className="rounded-[18px] border border-rose-100 bg-rose-50/80 px-4 py-3 text-sm text-rose-700">
@@ -68,20 +79,21 @@ export function ProcessActionBar({
           ) : null}
         </div>
         <Button
-          className="min-w-[184px]"
-          disabled={!hasFile || isProcessing}
+          className="min-w-[220px]"
+          disabled={documentCount === 0 || isProcessing}
           onClick={onProcess}
           size="lg"
         >
           {isProcessing ? (
             <>
               <LoaderCircle className="size-4 animate-spin" />
-              Processing...
+              Processing batch...
             </>
           ) : (
             <>
               <Sparkles className="size-4" />
-              Process document
+              Process {documentCount || ""} form
+              {documentCount === 1 ? "" : "s"}
             </>
           )}
         </Button>
@@ -97,10 +109,10 @@ function getStatusLabel(status: ProcessingStatus) {
     case "processing":
       return "Processing";
     case "complete":
-      return "Results loaded";
+      return "Batch loaded";
     case "error":
       return "Needs attention";
     default:
-      return "Waiting for file";
+      return "Waiting for files";
   }
 }

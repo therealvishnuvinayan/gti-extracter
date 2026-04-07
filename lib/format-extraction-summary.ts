@@ -1,56 +1,60 @@
 import {
-  hasAnyStructuredFieldValue,
-  structuredFieldKeys,
-  structuredFieldLabels,
-  type ExtractionResult,
+  normalizedFeedbackScalarFieldKeys,
+  normalizedFeedbackFieldLabels,
+  type ProcessedFeedbackDocument,
 } from "@/lib/types";
 
-export function formatExtractionSummary(result: ExtractionResult) {
-  const structuredFields = structuredFieldKeys
-    .map((key) => `- ${structuredFieldLabels[key]}: ${result.fields[key] || "Not found"}`)
+export function formatExtractionSummary(document: ProcessedFeedbackDocument) {
+  const structuredFields = normalizedFeedbackScalarFieldKeys
+    .map((key) => {
+      const value = document.normalized[key];
+      return `- ${normalizedFeedbackFieldLabels[key]}: ${value || "Blank"}`;
+    })
     .join("\n");
 
-  const keyDetails =
-    result.keyDetails.length > 0
-      ? result.keyDetails.map((item) => `- ${item.label}: ${item.value}`).join("\n")
+  const pageSummaries =
+    document.pageExtractions.length > 0
+      ? document.pageExtractions
+          .map(
+            (page) =>
+              `- Page ${page.pageNumber}: ${page.pageSummary || "No summary returned"}`,
+          )
+          .join("\n")
       : "- None";
 
   const confidenceNotes =
-    result.confidenceNotes.length > 0
-      ? result.confidenceNotes.map((note) => `- ${note}`).join("\n")
+    document.normalized.confidenceNotes.length > 0
+      ? document.normalized.confidenceNotes.map((note) => `- ${note}`).join("\n")
       : "- None";
 
   const missingFields =
-    result.missingOrUnclearFields.length > 0
-      ? result.missingOrUnclearFields.map((field) => `- ${field}`).join("\n")
+    document.normalized.missingOrUnclearFields.length > 0
+      ? document.normalized.missingOrUnclearFields
+          .map((field) => `- ${field}`)
+          .join("\n")
       : "- None";
 
   return [
-    `Document Title: ${result.documentTitle || "Not found"}`,
-    `Document Type: ${result.documentType || "Unknown"}`,
-    `Detected Language: ${result.detectedLanguage || "Unknown"}`,
+    `Source File: ${document.sourceFileName}`,
+    `Status: ${document.status}`,
+    `Page Count: ${document.pageCount}`,
+    document.errorMessage ? `Error Message: ${document.errorMessage}` : "",
     "",
-    "Document Summary",
-    result.documentSummary || "Not available",
+    "Normalized Fields",
+    structuredFields,
     "",
-    "Key Details",
-    keyDetails,
+    "Page Summaries",
+    pageSummaries,
     "",
-    "Structured Fields",
-    hasAnyStructuredFieldValue(result.fields)
-      ? structuredFields
-      : "- No customer-form-specific fields detected",
-    "",
-    "Raw Transcription",
-    result.rawTranscription || "Not available",
-    "",
-    "English Translation",
-    result.englishTranslation || "Not available",
+    "Combined Transcription",
+    document.combinedTranscription || "Not available",
     "",
     "Confidence Notes",
     confidenceNotes,
     "",
-    "Missing or Unclear Fields",
+    "Missing Or Unclear Fields",
     missingFields,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

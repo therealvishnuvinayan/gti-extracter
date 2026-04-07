@@ -1,23 +1,11 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Manrope } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
-  subsets: ["latin"],
-});
-
-const ibmPlexMono = IBM_Plex_Mono({
-  variable: "--font-ibm-plex-mono",
-  weight: ["400", "500"],
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "GTI Extractor",
+  title: "GTI Feedback Form Extractor",
   description:
-    "GTI Extractor for handwritten form extraction results.",
+    "Demo-ready GTI feedback form extraction from scanned PDFs to Excel.",
 };
 
 export default function RootLayout({
@@ -26,10 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${manrope.variable} ${ibmPlexMono.variable} h-full scroll-smooth antialiased`}
-    >
+    <html lang="en" className="h-full scroll-smooth antialiased">
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
         <Toaster />

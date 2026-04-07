@@ -1,21 +1,32 @@
 "use client";
 
+import { useState } from "react";
 import { AlertCircle, Copy, FileJson, Sheet, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NotesPanel } from "@/components/document-extractor/notes-panel";
 import { StructuredFieldsGrid } from "@/components/document-extractor/structured-fields-grid";
 import { TextPanel } from "@/components/document-extractor/text-panel";
-import { toStructuredFieldViews, type ExtractionResult } from "@/lib/types";
+import type {
+  ExtractionBatchResult,
+  ProcessedFeedbackDocument,
+} from "@/lib/types";
 
 type ResultTabsProps = {
   errorMessage?: string | null;
-  result: ExtractionResult | null;
+  result: ExtractionBatchResult | null;
   isProcessing: boolean;
-  onCopy: () => void;
+  templateReady: boolean;
+  onCopyDocument: (document: ProcessedFeedbackDocument) => void;
   onDownloadJson: () => void;
   onDownloadExcel: () => void;
   onClear: () => void;
@@ -25,34 +36,42 @@ export function ResultTabs({
   errorMessage,
   result,
   isProcessing,
-  onCopy,
+  templateReady,
+  onCopyDocument,
   onDownloadJson,
   onDownloadExcel,
   onClear,
 }: ResultTabsProps) {
+  const [activeDocumentName, setActiveDocumentName] = useState<string>("");
+
+  const activeDocument =
+    result?.documents.find((document) => document.sourceFileName === activeDocumentName) ??
+    result?.documents[0] ??
+    null;
+
   if (isProcessing) {
     return (
       <Card className="overflow-hidden">
         <CardHeader className="gap-3">
           <CardTitle>Extraction results</CardTitle>
           <CardDescription>
-            Reading the document, mapping fields, translating content, and
-            validating the response shape.
+            Rendering PDFs, extracting page evidence, normalizing GTI rows, and
+            preparing export-ready output.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex flex-wrap gap-2">
-            <Skeleton className="h-10 w-32 rounded-full" />
-            <Skeleton className="h-10 w-32 rounded-full" />
-            <Skeleton className="h-10 w-32 rounded-full" />
-            <Skeleton className="h-10 w-32 rounded-full" />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {Array.from({ length: 6 }).map((_, index) => (
+          <div className="grid gap-4 md:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
               <Skeleton key={index} className="h-28 rounded-[24px]" />
             ))}
           </div>
-          <Skeleton className="h-44 rounded-[28px]" />
+          <div className="grid gap-3 md:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={index} className="h-24 rounded-[24px]" />
+            ))}
+          </div>
+          <Skeleton className="h-10 w-72 rounded-full" />
+          <Skeleton className="h-[560px] rounded-[28px]" />
         </CardContent>
       </Card>
     );
@@ -64,8 +83,7 @@ export function ResultTabs({
         <CardHeader className="gap-3">
           <CardTitle>Extraction results</CardTitle>
           <CardDescription>
-            The structured output appears here after you process a selected
-            document.
+            Batch output appears here after you process the selected GTI forms.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -79,7 +97,7 @@ export function ResultTabs({
                   Extraction error
                 </Badge>
                 <h3 className="text-xl font-semibold tracking-tight text-foreground">
-                  The document could not be processed
+                  The batch could not be processed
                 </h3>
                 <p className="text-sm leading-6 text-muted-foreground">
                   {errorMessage}
@@ -90,11 +108,11 @@ export function ResultTabs({
             <div className="grid-glow flex min-h-[360px] flex-col items-center justify-center rounded-[28px] border border-dashed border-border/80 bg-white/70 px-6 text-center">
               <div className="max-w-md space-y-3">
                 <h3 className="text-xl font-semibold tracking-tight text-foreground">
-                  Ready for a live extraction result
+                  Ready for GTI batch extraction
                 </h3>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  Upload a document and run processing to reveal classification,
-                  key details, transcription, translation, and reviewer notes.
+                  Process the queued files to review normalized rows, page-level
+                  evidence, and export-ready workbook output.
                 </p>
               </div>
             </div>
@@ -111,13 +129,19 @@ export function ResultTabs({
           <div className="space-y-2">
             <CardTitle>Extraction results</CardTitle>
             <CardDescription>
-              Live structured output returned from the extraction API.
+              Batch output returned from the GTI extraction API, ready for review and
+              export.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={onCopy} size="sm" variant="outline">
+            <Button
+              disabled={!activeDocument}
+              onClick={() => activeDocument && onCopyDocument(activeDocument)}
+              size="sm"
+              variant="outline"
+            >
               <Copy className="size-4" />
-              Copy
+              Copy active record
             </Button>
             <Button onClick={onDownloadJson} size="sm" variant="outline">
               <FileJson className="size-4" />
@@ -134,51 +158,206 @@ export function ResultTabs({
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="structured">
-          <TabsList>
-            <TabsTrigger value="structured">Structured Fields</TabsTrigger>
-            <TabsTrigger value="raw">Raw Transcription</TabsTrigger>
-            <TabsTrigger value="translation">English Translation</TabsTrigger>
-            <TabsTrigger value="notes">Notes</TabsTrigger>
-          </TabsList>
+      <CardContent className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard
+            label="Files processed"
+            value={String(result.summary.totalFiles)}
+            note={`${result.summary.totalPages} total pages`}
+          />
+          <SummaryCard
+            label="Completed"
+            value={String(result.summary.completedFiles)}
+            note="Ready for export"
+          />
+          <SummaryCard
+            label="Needs review"
+            value={String(result.summary.failedFiles)}
+            note="Files with incomplete normalization"
+          />
+          <SummaryCard
+            label="Template"
+            value={templateReady ? "Ready" : "Optional"}
+            note={
+              templateReady
+                ? "GTI workbook will drive column order"
+                : "Fallback workbook uses normalized headers"
+            }
+          />
+        </div>
 
-          <TabsContent value="structured">
-            <StructuredFieldsGrid
-              documentTitle={result.documentTitle}
-              documentSummary={result.documentSummary}
-              documentType={result.documentType}
-              detectedLanguage={result.detectedLanguage}
-              fields={toStructuredFieldViews(result.fields)}
-              keyDetails={result.keyDetails}
-              rawFields={result.fields}
-              missingCount={result.missingOrUnclearFields.length}
-            />
-          </TabsContent>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">Select a processed file</Badge>
+            {activeDocument ? <Badge variant="outline">{activeDocument.sourceFileName}</Badge> : null}
+          </div>
+          <div className="grid gap-3 xl:grid-cols-2">
+            {result.documents.map((document) => {
+              const isActive = document.sourceFileName === activeDocument?.sourceFileName;
 
-          <TabsContent value="raw">
-            <TextPanel
-              content={result.rawTranscription}
-              description="A realistic multiline transcription block as if OCR and handwriting recognition had already run."
-              title="Raw transcription"
-            />
-          </TabsContent>
+              return (
+                <button
+                  key={`${document.sourceFileName}-${document.pageCount}`}
+                  className={`rounded-[24px] border p-4 text-left transition-all ${
+                    isActive
+                      ? "border-primary bg-primary/5 shadow-[0_10px_30px_rgba(24,87,255,0.08)]"
+                      : "border-border/70 bg-white/80 hover:bg-white"
+                  }`}
+                  onClick={() => setActiveDocumentName(document.sourceFileName)}
+                  type="button"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <p className="truncate text-sm font-semibold text-foreground">
+                        {document.sourceFileName}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {document.pageCount} page{document.pageCount === 1 ? "" : "s"} •{" "}
+                        {document.sourceKind.toUpperCase()}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={
+                        document.status === "completed" ? "success" : "destructive"
+                      }
+                    >
+                      {document.status === "completed" ? "Completed" : "Review"}
+                    </Badge>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-          <TabsContent value="translation">
-            <TextPanel
-              content={result.englishTranslation}
-              description="A clean English summary suitable for downstream workflows and review."
-              title="English translation"
-            />
-          </TabsContent>
+        {activeDocument ? (
+          <Tabs defaultValue="normalized">
+            <TabsList>
+              <TabsTrigger value="normalized">Normalized Record</TabsTrigger>
+              <TabsTrigger value="pages">Page Trace</TabsTrigger>
+              <TabsTrigger value="notes">Notes</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="notes">
-            <NotesPanel
-              confidenceNotes={result.confidenceNotes}
-              missingOrUnclearFields={result.missingOrUnclearFields}
-            />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="normalized">
+              <StructuredFieldsGrid document={activeDocument} />
+            </TabsContent>
+
+            <TabsContent value="pages">
+              <div className="space-y-6">
+                <TextPanel
+                  content={
+                    activeDocument.combinedTranscription ||
+                    "No combined transcription was returned."
+                  }
+                  description="Merged page-level transcription and visible field text used during normalization."
+                  title="Combined transcription"
+                />
+
+                <div className="space-y-4">
+                  {activeDocument.pageExtractions.map((page) => (
+                    <Card
+                      key={`${activeDocument.sourceFileName}-page-${page.pageNumber}`}
+                      className="rounded-[28px] border-border/80 bg-white/90 shadow-sm"
+                    >
+                      <CardHeader className="gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary">Page {page.pageNumber}</Badge>
+                          {page.sectionTitle ? (
+                            <Badge variant="outline">{page.sectionTitle}</Badge>
+                          ) : null}
+                          {page.missingOrUnclearFields.length > 0 ? (
+                            <Badge variant="outline">
+                              {page.missingOrUnclearFields.length} uncertainty flag
+                              {page.missingOrUnclearFields.length === 1 ? "" : "s"}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <div className="space-y-1">
+                          <CardTitle>{page.pageSummary || `Page ${page.pageNumber}`}</CardTitle>
+                          <CardDescription>
+                            Page-level evidence extracted before document normalization.
+                          </CardDescription>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {page.extractedItems.length > 0 ? (
+                          <div className="grid gap-4 md:grid-cols-2">
+                            {page.extractedItems.map((item, index) => (
+                              <div
+                                key={`${page.pageNumber}-${item.label}-${index}`}
+                                className="rounded-[24px] border border-border/70 bg-secondary/35 p-4"
+                              >
+                                <div className="space-y-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-sm font-semibold text-foreground">
+                                      {item.label || "Unlabeled field"}
+                                    </p>
+                                    <Badge variant="secondary">{item.answerType}</Badge>
+                                    {item.isBlank ? (
+                                      <Badge variant="outline">Blank on form</Badge>
+                                    ) : null}
+                                  </div>
+                                  <p className="whitespace-pre-line text-sm leading-6 text-foreground">
+                                    {item.answer ||
+                                      item.selectedOptions.join(", ") ||
+                                      "No direct answer returned"}
+                                  </p>
+                                  {item.selectedOptions.length > 0 ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      Selected: {item.selectedOptions.join(", ")}
+                                    </p>
+                                  ) : null}
+                                  {item.evidence ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      Evidence: {item.evidence}
+                                    </p>
+                                  ) : null}
+                                  {item.uncertainty ? (
+                                    <p className="text-xs text-amber-700">
+                                      Uncertainty: {item.uncertainty}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="rounded-[24px] border border-border/70 bg-secondary/35 p-4 text-sm text-muted-foreground">
+                            No field-level evidence was returned for this page.
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="notes">
+              <NotesPanel document={activeDocument} />
+            </TabsContent>
+          </Tabs>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note: string;
+}) {
+  return (
+    <Card className="rounded-[24px] border-border/70 bg-white/90 shadow-sm">
+      <CardContent className="space-y-2 p-5">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="text-3xl font-semibold tracking-tight text-foreground">{value}</p>
+        <p className="text-sm leading-6 text-muted-foreground">{note}</p>
       </CardContent>
     </Card>
   );

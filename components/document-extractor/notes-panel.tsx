@@ -1,28 +1,38 @@
 import { AlertCircle, CheckCircle2 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import type { ProcessedFeedbackDocument } from "@/lib/types";
 
 type NotesPanelProps = {
-  confidenceNotes: string[];
-  missingOrUnclearFields: string[];
+  document: ProcessedFeedbackDocument;
 };
 
-export function NotesPanel({
-  confidenceNotes,
-  missingOrUnclearFields,
-}: NotesPanelProps) {
+export function NotesPanel({ document }: NotesPanelProps) {
   return (
     <Card className="rounded-[28px] border-border/80 bg-white/90 shadow-sm">
       <CardHeader className="gap-2">
         <CardTitle>Review notes</CardTitle>
         <CardDescription>
-          Confidence and uncertainty details that an operator would likely check.
+          Confidence flags, missing fields, and extraction issues worth checking
+          before the Excel file is used.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {document.errorMessage ? (
+          <div className="rounded-[22px] border border-rose-100 bg-rose-50/80 p-4 text-sm text-rose-700">
+            {document.errorMessage}
+          </div>
+        ) : null}
+
         <div className="space-y-3">
           <p className="text-sm font-semibold text-foreground">Confidence notes</p>
-          {confidenceNotes.length > 0 ? (
-            confidenceNotes.map((note, index) => (
+          {document.normalized.confidenceNotes.length > 0 ? (
+            document.normalized.confidenceNotes.map((note, index) => (
               <div
                 key={`${note}-${index}`}
                 className="flex items-start gap-3 rounded-[22px] border border-border/70 bg-secondary/35 p-4"
@@ -37,7 +47,7 @@ export function NotesPanel({
             ))
           ) : (
             <div className="rounded-[22px] border border-border/70 bg-secondary/35 p-4 text-sm text-muted-foreground">
-              No explicit confidence notes were returned.
+              No explicit confidence notes were returned for this file.
             </div>
           )}
         </div>
@@ -46,8 +56,8 @@ export function NotesPanel({
           <p className="text-sm font-semibold text-foreground">
             Missing or unclear fields
           </p>
-          {missingOrUnclearFields.length > 0 ? (
-            missingOrUnclearFields.map((field) => (
+          {document.normalized.missingOrUnclearFields.length > 0 ? (
+            document.normalized.missingOrUnclearFields.map((field) => (
               <div
                 key={field}
                 className="rounded-[22px] border border-border/70 bg-white/80 p-4 text-sm text-foreground"
@@ -57,7 +67,7 @@ export function NotesPanel({
             ))
           ) : (
             <div className="rounded-[22px] border border-border/70 bg-white/80 p-4 text-sm text-muted-foreground">
-              No missing field warnings were returned.
+              No missing-field warnings were returned for this file.
             </div>
           )}
         </div>

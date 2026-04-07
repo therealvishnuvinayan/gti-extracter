@@ -1,30 +1,36 @@
 "use client";
 
 import { useRef, type ChangeEvent, type DragEvent } from "react";
-import { FileImage, FileText, RefreshCcw, Trash2, UploadCloud } from "lucide-react";
+import { FileStack, RefreshCcw, Trash2, UploadCloud } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import type { SelectedDocument } from "@/components/document-extractor/document-extractor-demo";
-import { ACCEPTED_FILE_TYPES } from "@/lib/types";
+import { ACCEPTED_SOURCE_FILE_TYPES } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type UploadDropzoneProps = {
-  file: SelectedDocument | null;
+  files: SelectedDocument[];
   isDragActive: boolean;
   disabled?: boolean;
   onDragActiveChange: (active: boolean) => void;
-  onFileSelect: (file: File) => void;
-  onRemoveFile: () => void;
+  onFilesSelect: (files: File[]) => void;
+  onClearFiles: () => void;
 };
 
 export function UploadDropzone({
-  file,
+  files,
   isDragActive,
   disabled,
   onDragActiveChange,
-  onFileSelect,
-  onRemoveFile,
+  onFilesSelect,
+  onClearFiles,
 }: UploadDropzoneProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -41,17 +47,19 @@ export function UploadDropzone({
       return;
     }
 
-    const nextFile = event.target.files?.[0];
-    if (!nextFile) {
+    const nextFiles = Array.from(event.target.files ?? []);
+
+    if (nextFiles.length === 0) {
       return;
     }
 
-    onFileSelect(nextFile);
+    onFilesSelect(nextFiles);
     event.target.value = "";
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+
     if (disabled) {
       return;
     }
@@ -67,16 +75,18 @@ export function UploadDropzone({
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     onDragActiveChange(false);
+
     if (disabled) {
       return;
     }
 
-    const nextFile = event.dataTransfer.files?.[0];
-    if (!nextFile) {
+    const nextFiles = Array.from(event.dataTransfer.files ?? []);
+
+    if (nextFiles.length === 0) {
       return;
     }
 
-    onFileSelect(nextFile);
+    onFilesSelect(nextFiles);
   };
 
   return (
@@ -86,19 +96,20 @@ export function UploadDropzone({
           Upload
         </Badge>
         <div className="space-y-1">
-          <CardTitle>Drop in a document</CardTitle>
+          <CardTitle>Drop in feedback forms</CardTitle>
           <CardDescription>
-            Drag and drop a JPG, PNG, WEBP, or PDF. You can also browse manually
-            and swap the file at any time.
+            Add one or more scanned PDFs. Images are supported for edge cases, but
+            PDFs are the primary path.
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <input
           ref={inputRef}
-          accept={ACCEPTED_FILE_TYPES}
+          accept={ACCEPTED_SOURCE_FILE_TYPES}
           className="sr-only"
           disabled={disabled}
+          multiple
           onChange={handleInputChange}
           type="file"
         />
@@ -119,20 +130,16 @@ export function UploadDropzone({
             </div>
             <div className="space-y-2">
               <p className="text-lg font-semibold tracking-tight text-foreground">
-                Drag and drop your form here
+                Drag and drop GTI forms here
               </p>
               <p className="max-w-md text-sm leading-6 text-muted-foreground">
-                Ideal for customer forms, worksheets, letters, surveys, receipts,
-                and handwritten notes.
+                Best results come from high-resolution scans of the full feedback
+                form, including faint ticks and handwritten comments.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button
-                className="min-w-[148px]"
-                disabled={disabled}
-                onClick={openFilePicker}
-              >
-                Choose file
+              <Button className="min-w-[148px]" disabled={disabled} onClick={openFilePicker}>
+                Choose files
               </Button>
               <Badge variant="secondary">Accepted: JPG, PNG, WEBP, PDF</Badge>
             </div>
@@ -140,22 +147,24 @@ export function UploadDropzone({
         </div>
 
         <div className="rounded-[24px] border border-border/70 bg-white/80 p-4">
-          {file ? (
+          {files.length > 0 ? (
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary">
-                  {file.kind === "pdf" ? (
-                    <FileText className="size-5 text-primary" />
-                  ) : (
-                    <FileImage className="size-5 text-primary" />
-                  )}
+                  <FileStack className="size-5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {file.file.name}
+                  <p className="text-sm font-semibold text-foreground">
+                    {files.length} file{files.length > 1 ? "s" : ""} ready for extraction
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {formatFileSize(file.file.size)} • {file.kind.toUpperCase()}
+                    {formatFileSize(files.reduce((total, file) => total + file.file.size, 0))}
+                    {" • "}
+                    {files.filter((file) => file.kind === "pdf").length} PDF
+                    {files.filter((file) => file.kind === "pdf").length !== 1 ? "s" : ""}
+                    {" • "}
+                    {files.filter((file) => file.kind === "image").length} image
+                    {files.filter((file) => file.kind === "image").length !== 1 ? "s" : ""}
                   </p>
                 </div>
               </div>
@@ -167,25 +176,25 @@ export function UploadDropzone({
                   variant="outline"
                 >
                   <RefreshCcw className="size-4" />
-                  Replace
+                  Add more
                 </Button>
                 <Button
                   disabled={disabled}
-                  onClick={onRemoveFile}
+                  onClick={onClearFiles}
                   size="sm"
                   variant="ghost"
                 >
                   <Trash2 className="size-4" />
-                  Remove
+                  Clear all
                 </Button>
               </div>
             </div>
           ) : (
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">No file selected yet</p>
+              <p className="font-medium text-foreground">No feedback forms selected yet</p>
               <p>
-                The chosen document name and size will appear here before
-                processing.
+                The selected file count, types, and total size will appear here
+                before processing.
               </p>
             </div>
           )}
