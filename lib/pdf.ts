@@ -8,6 +8,7 @@ import {
 } from "@napi-rs/canvas";
 
 type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
+type PdfJsWorkerModule = typeof import("pdfjs-dist/legacy/build/pdf.worker.mjs");
 type CanvasContext = CanvasRenderingContext2D;
 
 export type RenderedPdfPage = {
@@ -23,6 +24,7 @@ const MIN_SCALE = 1.8;
 const MAX_SCALE = 3;
 
 let pdfJsPromise: Promise<PdfJsModule> | null = null;
+let pdfJsWorkerPromise: Promise<PdfJsWorkerModule> | null = null;
 
 export async function renderPdfToPngPages(pdfBytes: Buffer) {
   installPdfRenderingGlobals();
@@ -109,8 +111,30 @@ function installPdfRenderingGlobals() {
 
 function getPdfJs() {
   if (!pdfJsPromise) {
-    pdfJsPromise = import("pdfjs-dist/legacy/build/pdf.mjs");
+    pdfJsPromise = loadPdfJs();
   }
 
   return pdfJsPromise;
+}
+
+async function loadPdfJs() {
+  const [pdfjs, pdfjsWorker] = await Promise.all([
+    import("pdfjs-dist/legacy/build/pdf.mjs"),
+    getPdfJsWorker(),
+  ]);
+  const globalScope = globalThis as Record<string, unknown>;
+
+  if (!globalScope.pdfjsWorker) {
+    globalScope.pdfjsWorker = pdfjsWorker;
+  }
+
+  return pdfjs;
+}
+
+function getPdfJsWorker() {
+  if (!pdfJsWorkerPromise) {
+    pdfJsWorkerPromise = import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  }
+
+  return pdfJsWorkerPromise;
 }
