@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, Copy, Database, LoaderCircle, Sheet, Trash2 } from "lucide-react";
+import { AlertCircle, Copy, Database, Expand, LoaderCircle, Sheet, Trash2 } from "lucide-react";
+import { ExtractionResultsFocusDialog } from "@/components/document-extractor/extraction-results-focus-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ export function ResultTabs({
   onClear,
 }: ResultTabsProps) {
   const [activeDocumentName, setActiveDocumentName] = useState<string>("");
+  const [isFocusOpen, setIsFocusOpen] = useState(false);
 
   const activeDocument =
     result?.documents.find((document) => document.sourceFileName === activeDocumentName) ??
@@ -122,254 +124,280 @@ export function ResultTabs({
   }
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="gap-4">
-        <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
-          <div className="max-w-xl space-y-2">
-            <CardTitle>Processing results</CardTitle>
-            <CardDescription>
-              Review captured records, save them, or export the latest results.
-            </CardDescription>
-          </div>
-          <div className="grid w-full gap-2 sm:grid-cols-2 2xl:w-auto 2xl:min-w-[28rem]">
-            <Button
-              className="w-full justify-center"
-              disabled={!result || saveStatus === "saving" || saveStatus === "saved"}
-              onClick={onSaveToDatabase}
-              size="sm"
-              variant="outline"
-            >
-              {saveStatus === "saving" ? (
-                <>
-                  <LoaderCircle className="size-4 animate-spin" />
-                  Saving...
-                </>
-              ) : saveStatus === "saved" ? (
-                <>
-                  <Database className="size-4" />
-                  Saved
-                </>
-              ) : (
-                <>
-                  <Database className="size-4" />
-                  Save records
-                </>
-              )}
-            </Button>
-            <Button
-              className="w-full justify-center"
-              disabled={!activeDocument}
-              onClick={() => activeDocument && onCopyDocument(activeDocument)}
-              size="sm"
-              variant="outline"
-            >
-              <Copy className="size-4" />
-              Copy active record
-            </Button>
-            <Button className="w-full justify-center" onClick={onDownloadExcel} size="sm" variant="outline">
-              <Sheet className="size-4" />
-              Download Excel
-            </Button>
-            <Button className="w-full justify-center sm:col-span-2" onClick={onClear} size="sm" variant="ghost">
-              <Trash2 className="size-4" />
-              Clear
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-4">
-          <SummaryCard
-            label="Processed"
-            value={String(result.summary.totalFiles)}
-            note={`${result.summary.totalPages} total pages`}
-          />
-          <SummaryCard
-            label="Ready"
-            value={String(result.summary.completedFiles)}
-            note="Records available for export"
-          />
-          <SummaryCard
-            label="Needs review"
-            value={String(result.summary.failedFiles)}
-            note="Forms that need a closer look"
-          />
-          <SummaryCard
-            label="Saved"
-            value={
-              saveStatus === "saved"
-                ? "Saved"
-                : saveStatus === "saving"
-                  ? "Saving"
-                  : saveStatus === "error"
-                    ? "Retry"
-                    : "Pending"
-            }
-            note={
-              saveStatus === "saved"
-                ? "Results stored successfully"
-                : saveStatus === "saving"
-                  ? "Saving records"
-                  : saveStatus === "error"
-                    ? "Use save to try again"
-                    : "Records are saved automatically"
-            }
-          />
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">Select a record</Badge>
-            {activeDocument ? <Badge variant="outline">{activeDocument.sourceFileName}</Badge> : null}
-          </div>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-            {result.documents.map((document) => {
-              const isActive = document.sourceFileName === activeDocument?.sourceFileName;
-
-              return (
-                <button
-                  key={`${document.sourceFileName}-${document.pageCount}`}
-                  className={`rounded-[24px] border p-4 text-left transition-all ${
-                    isActive
-                      ? "border-primary bg-primary/5 shadow-[0_10px_30px_rgba(24,87,255,0.08)]"
-                      : "border-border/70 bg-white/80 hover:bg-white"
-                  }`}
-                  onClick={() => setActiveDocumentName(document.sourceFileName)}
-                  type="button"
+    <>
+      <Card className="overflow-hidden">
+        <CardHeader className="gap-4">
+          <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+            <div className="max-w-xl space-y-2">
+              <CardTitle>Processing results</CardTitle>
+              <CardDescription>
+                Review captured records, save them, or export the latest results.
+              </CardDescription>
+            </div>
+            <div className="flex flex-col gap-2 2xl:items-end">
+              <Button
+                aria-label="Open focus view"
+                className="self-end"
+                disabled={!activeDocument}
+                onClick={() => setIsFocusOpen(true)}
+                size="icon"
+                variant="ghost"
+              >
+                <Expand className="size-4" />
+              </Button>
+              <div className="grid w-full gap-2 sm:grid-cols-2 2xl:w-auto 2xl:min-w-[28rem]">
+                <Button
+                  className="w-full justify-center"
+                  disabled={!result || saveStatus === "saving" || saveStatus === "saved"}
+                  onClick={onSaveToDatabase}
+                  size="sm"
+                  variant="outline"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <p className="truncate text-sm font-semibold text-foreground">
-                        {document.sourceFileName}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {document.pageCount} page{document.pageCount === 1 ? "" : "s"} •{" "}
-                        {document.sourceKind.toUpperCase()}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={
-                        document.status === "completed" ? "success" : "destructive"
-                      }
-                    >
-                      {document.status === "completed" ? "Completed" : "Review"}
-                    </Badge>
-                  </div>
-                </button>
-              );
-            })}
+                  {saveStatus === "saving" ? (
+                    <>
+                      <LoaderCircle className="size-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : saveStatus === "saved" ? (
+                    <>
+                      <Database className="size-4" />
+                      Saved
+                    </>
+                  ) : (
+                    <>
+                      <Database className="size-4" />
+                      Save records
+                    </>
+                  )}
+                </Button>
+                <Button
+                  className="w-full justify-center"
+                  disabled={!activeDocument}
+                  onClick={() => activeDocument && onCopyDocument(activeDocument)}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Copy className="size-4" />
+                  Copy active record
+                </Button>
+                <Button className="w-full justify-center" onClick={onDownloadExcel} size="sm" variant="outline">
+                  <Sheet className="size-4" />
+                  Download Excel
+                </Button>
+                <Button className="w-full justify-center sm:col-span-2" onClick={onClear} size="sm" variant="ghost">
+                  <Trash2 className="size-4" />
+                  Clear
+                </Button>
+              </div>
+            </div>
           </div>
-        </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-4">
+            <SummaryCard
+              label="Processed"
+              value={String(result.summary.totalFiles)}
+              note={`${result.summary.totalPages} total pages`}
+            />
+            <SummaryCard
+              label="Ready"
+              value={String(result.summary.completedFiles)}
+              note="Records available for export"
+            />
+            <SummaryCard
+              label="Needs review"
+              value={String(result.summary.failedFiles)}
+              note="Forms that need a closer look"
+            />
+            <SummaryCard
+              label="Saved"
+              value={
+                saveStatus === "saved"
+                  ? "Saved"
+                  : saveStatus === "saving"
+                    ? "Saving"
+                    : saveStatus === "error"
+                      ? "Retry"
+                      : "Pending"
+              }
+              note={
+                saveStatus === "saved"
+                  ? "Results stored successfully"
+                  : saveStatus === "saving"
+                    ? "Saving records"
+                    : saveStatus === "error"
+                      ? "Use save to try again"
+                      : "Records are saved automatically"
+              }
+            />
+          </div>
 
-        {activeDocument ? (
-          <Tabs defaultValue="normalized">
-            <TabsList>
-              <TabsTrigger value="normalized">Structured Record</TabsTrigger>
-              <TabsTrigger value="pages">Source Pages</TabsTrigger>
-              <TabsTrigger value="notes">Notes</TabsTrigger>
-            </TabsList>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">Select a record</Badge>
+              {activeDocument ? <Badge variant="outline">{activeDocument.sourceFileName}</Badge> : null}
+            </div>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+              {result.documents.map((document) => {
+                const isActive = document.sourceFileName === activeDocument?.sourceFileName;
 
-            <TabsContent value="normalized">
-              <StructuredFieldsGrid document={activeDocument} />
-            </TabsContent>
+                return (
+                  <button
+                    key={`${document.sourceFileName}-${document.pageCount}`}
+                    className={`rounded-[24px] border p-4 text-left transition-all ${
+                      isActive
+                        ? "border-primary bg-primary/5 shadow-[0_10px_30px_rgba(24,87,255,0.08)]"
+                        : "border-border/70 bg-white/80 hover:bg-white"
+                    }`}
+                    onClick={() => setActiveDocumentName(document.sourceFileName)}
+                    type="button"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {document.sourceFileName}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {document.pageCount} page{document.pageCount === 1 ? "" : "s"} •{" "}
+                          {document.sourceKind.toUpperCase()}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          document.status === "completed" ? "success" : "destructive"
+                        }
+                      >
+                        {document.status === "completed" ? "Completed" : "Review"}
+                      </Badge>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-            <TabsContent value="pages">
-              <div className="space-y-6">
-                <TextPanel
-                  content={
-                    activeDocument.combinedTranscription ||
-                    "No combined transcription was returned."
-                  }
-                  description="Text captured from the submitted form for verification."
-                  title="Captured text"
-                />
+          {activeDocument ? (
+            <Tabs defaultValue="normalized">
+              <TabsList>
+                <TabsTrigger value="normalized">Structured Record</TabsTrigger>
+                <TabsTrigger value="pages">Source Pages</TabsTrigger>
+                <TabsTrigger value="notes">Notes</TabsTrigger>
+              </TabsList>
 
-                <div className="space-y-4">
-                  {activeDocument.pageExtractions.map((page) => (
-                    <Card
-                      key={`${activeDocument.sourceFileName}-page-${page.pageNumber}`}
-                      className="rounded-[28px] border-border/80 bg-white/90 shadow-sm"
-                    >
-                      <CardHeader className="gap-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="secondary">Page {page.pageNumber}</Badge>
-                          {page.sectionTitle ? (
-                            <Badge variant="outline">{page.sectionTitle}</Badge>
-                          ) : null}
-                          {page.missingOrUnclearFields.length > 0 ? (
-                            <Badge variant="outline">
-                              {page.missingOrUnclearFields.length} review flag
-                              {page.missingOrUnclearFields.length === 1 ? "" : "s"}
-                            </Badge>
-                          ) : null}
-                        </div>
-                        <div className="space-y-1">
-                          <CardTitle>{page.pageSummary || `Page ${page.pageNumber}`}</CardTitle>
-                          <CardDescription>
-                            Details captured from this page for review.
-                          </CardDescription>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {page.extractedItems.length > 0 ? (
-                          <div className="grid gap-4 md:grid-cols-2">
-                            {page.extractedItems.map((item, index) => (
-                              <div
-                                key={`${page.pageNumber}-${item.label}-${index}`}
-                                className="rounded-[24px] border border-border/70 bg-secondary/35 p-4"
-                              >
-                                <div className="space-y-2">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-sm font-semibold text-foreground">
-                                      {item.label || "Unlabeled field"}
+              <TabsContent value="normalized">
+                <StructuredFieldsGrid document={activeDocument} />
+              </TabsContent>
+
+              <TabsContent value="pages">
+                <div className="space-y-6">
+                  <TextPanel
+                    content={
+                      activeDocument.combinedTranscription ||
+                      "No combined transcription was returned."
+                    }
+                    description="Text captured from the submitted form for verification."
+                    title="Captured text"
+                  />
+
+                  <div className="space-y-4">
+                    {activeDocument.pageExtractions.map((page) => (
+                      <Card
+                        key={`${activeDocument.sourceFileName}-page-${page.pageNumber}`}
+                        className="rounded-[28px] border-border/80 bg-white/90 shadow-sm"
+                      >
+                        <CardHeader className="gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary">Page {page.pageNumber}</Badge>
+                            {page.sectionTitle ? (
+                              <Badge variant="outline">{page.sectionTitle}</Badge>
+                            ) : null}
+                            {page.missingOrUnclearFields.length > 0 ? (
+                              <Badge variant="outline">
+                                {page.missingOrUnclearFields.length} review flag
+                                {page.missingOrUnclearFields.length === 1 ? "" : "s"}
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <div className="space-y-1">
+                            <CardTitle>{page.pageSummary || `Page ${page.pageNumber}`}</CardTitle>
+                            <CardDescription>
+                              Details captured from this page for review.
+                            </CardDescription>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {page.extractedItems.length > 0 ? (
+                            <div className="grid gap-4 md:grid-cols-2">
+                              {page.extractedItems.map((item, index) => (
+                                <div
+                                  key={`${page.pageNumber}-${item.label}-${index}`}
+                                  className="rounded-[24px] border border-border/70 bg-secondary/35 p-4"
+                                >
+                                  <div className="space-y-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="text-sm font-semibold text-foreground">
+                                        {item.label || "Unlabeled field"}
+                                      </p>
+                                      {item.isBlank ? (
+                                        <Badge variant="outline">Blank on form</Badge>
+                                      ) : null}
+                                    </div>
+                                    <p className="whitespace-pre-line text-sm leading-6 text-foreground">
+                                      {item.answer ||
+                                        item.selectedOptions.join(", ") ||
+                                        "No direct answer returned"}
                                     </p>
-                                    {item.isBlank ? (
-                                      <Badge variant="outline">Blank on form</Badge>
+                                    {item.selectedOptions.length > 0 ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        Selected: {item.selectedOptions.join(", ")}
+                                      </p>
+                                    ) : null}
+                                    {item.evidence ? (
+                                      <p className="text-xs text-muted-foreground">
+                                        Observed on page: {item.evidence}
+                                      </p>
+                                    ) : null}
+                                    {item.uncertainty ? (
+                                      <p className="text-xs text-amber-700">
+                                        Review note: {item.uncertainty}
+                                      </p>
                                     ) : null}
                                   </div>
-                                  <p className="whitespace-pre-line text-sm leading-6 text-foreground">
-                                    {item.answer ||
-                                      item.selectedOptions.join(", ") ||
-                                      "No direct answer returned"}
-                                  </p>
-                                  {item.selectedOptions.length > 0 ? (
-                                    <p className="text-xs text-muted-foreground">
-                                      Selected: {item.selectedOptions.join(", ")}
-                                    </p>
-                                  ) : null}
-                                  {item.evidence ? (
-                                    <p className="text-xs text-muted-foreground">
-                                      Observed on page: {item.evidence}
-                                    </p>
-                                  ) : null}
-                                  {item.uncertainty ? (
-                                    <p className="text-xs text-amber-700">
-                                      Review note: {item.uncertainty}
-                                    </p>
-                                  ) : null}
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="rounded-[24px] border border-border/70 bg-secondary/35 p-4 text-sm text-muted-foreground">
-                            No answers were captured on this page.
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="rounded-[24px] border border-border/70 bg-secondary/35 p-4 text-sm text-muted-foreground">
+                              No answers were captured on this page.
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="notes">
-              <NotesPanel document={activeDocument} />
-            </TabsContent>
-          </Tabs>
-        ) : null}
-      </CardContent>
-    </Card>
+              <TabsContent value="notes">
+                <NotesPanel document={activeDocument} />
+              </TabsContent>
+            </Tabs>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <ExtractionResultsFocusDialog
+        activeDocument={activeDocument}
+        activeDocumentName={activeDocumentName}
+        onClose={() => setIsFocusOpen(false)}
+        onCopyDocument={onCopyDocument}
+        onDownloadExcel={onDownloadExcel}
+        onSelectDocument={setActiveDocumentName}
+        open={isFocusOpen}
+        result={result}
+        saveStatus={saveStatus}
+      />
+    </>
   );
 }
 

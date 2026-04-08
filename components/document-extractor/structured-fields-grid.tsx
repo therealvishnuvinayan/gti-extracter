@@ -1,78 +1,15 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { feedbackFieldGroups } from "@/lib/feedback-field-groups";
 import {
   hasAnyNormalizedFeedbackValue,
   normalizedFeedbackFieldLabels,
   type ProcessedFeedbackDocument,
-  type NormalizedFeedbackScalarFieldKey,
 } from "@/lib/types";
 
 type StructuredFieldsGridProps = {
   document: ProcessedFeedbackDocument;
 };
-
-const FIELD_GROUPS: Array<{
-  title: string;
-  description: string;
-  fields: NormalizedFeedbackScalarFieldKey[];
-}> = [
-  {
-    title: "Respondent profile",
-    description: "Identity, location, and smoking-habit fields captured from the form.",
-    fields: [
-      "sourceFileName",
-      "cityAreaName",
-      "respondentType",
-      "respondentAgeGroup",
-      "smokingFrequency",
-      "brandSmokedMostOften",
-    ],
-  },
-  {
-    title: "Product setup",
-    description: "Product variant and respondent setup information.",
-    fields: [
-      "milanoSkuTested",
-      "cigaretteFilterType",
-      "wouldBuy",
-      "wouldRecommend",
-      "overallSatisfactionRating",
-      "mainReasonForRating",
-    ],
-  },
-  {
-    title: "Product ratings",
-    description: "Core product attribute ratings collected in the form.",
-    fields: [
-      "drawEffort",
-      "smokeVolume",
-      "smokeSmoothness",
-      "tasteFlavorFeeling",
-      "aftertasteFeeling",
-      "filterComfortFeel",
-      "burningSpeed",
-      "ashQualityColor",
-      "tasteFlavorConsistency",
-    ],
-  },
-  {
-    title: "Pack and value",
-    description: "Packaging and value-for-money answers.",
-    fields: [
-      "outerPackVisualAppeal",
-      "packColourAttractiveness",
-      "packQualityFeelOpeningStrength",
-      "priceValueMilanoOdysseyBlack",
-      "priceValueMilanoOdysseyGold",
-      "priceValueMilanoCherryVintage",
-    ],
-  },
-  {
-    title: "Open comments",
-    description: "Free-text commentary from the respondent.",
-    fields: ["likedMost", "shouldImprove"],
-  },
-];
 
 export function StructuredFieldsGrid({ document }: StructuredFieldsGridProps) {
   const hasNormalizedValues = hasAnyNormalizedFeedbackValue(document.normalized);
@@ -117,7 +54,7 @@ export function StructuredFieldsGrid({ document }: StructuredFieldsGridProps) {
         </Card>
       ) : null}
 
-      {FIELD_GROUPS.map((group) => (
+      {feedbackFieldGroups.map((group) => (
         <div key={group.title} className="space-y-3">
           <div>
             <h3 className="text-sm font-semibold text-foreground">{group.title}</h3>
