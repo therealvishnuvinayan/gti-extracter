@@ -46,16 +46,16 @@ export function ProcessActionBar({
         <div className="space-y-1">
           <CardTitle>Process selected forms</CardTitle>
           <CardDescription>
-            Capture responses from the GTI feedback form template and organize them
-            into structured records for review and export.
+            Create a persisted GTI extraction queue and process uploaded forms one
+            file at a time for safer batch handling.
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="max-w-lg space-y-2 text-sm leading-6 text-muted-foreground">
           <p>
-            Process one form or many forms at once, then review the captured GTI
-            records and export the latest results when ready.
+            Files are queued, extracted sequentially, and saved to the database
+            immediately after each successful form completes.
           </p>
           <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white/80 px-4 py-2">
             {status === "complete" ? (
@@ -65,7 +65,7 @@ export function ProcessActionBar({
             ) : (
               <Sparkles className="size-4 text-primary" />
             )}
-            Refreshing the page clears the current uploads and on-screen results.
+            Refreshing the page does not remove already-saved completed records.
           </div>
           {errorMessage ? (
             <p className="rounded-[18px] border border-rose-100 bg-rose-50/80 px-4 py-3 text-sm text-rose-700">

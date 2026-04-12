@@ -3,6 +3,8 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Database,
   Download,
@@ -23,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   basicApiErrorSchema,
   deleteRecordApiSuccessSchema,
-  recordsApiSuccessSchema,
+  paginatedRecordsApiSuccessSchema,
   type FeedbackRecord,
 } from "@/lib/types";
 
@@ -41,27 +43,38 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const requestAbortRef = useRef<AbortController | null>(null);
-  const recordsCountRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
-  const loadRecords = useCallback(async () => {
+  const loadRecords = useCallback(async (targetPage = page) => {
     if (requestAbortRef.current) {
       requestAbortRef.current.abort();
     }
 
     const abortController = new AbortController();
     requestAbortRef.current = abortController;
-    setStatus(recordsCountRef.current > 0 ? "ready" : "loading");
+    setStatus(hasLoadedRef.current ? "ready" : "loading");
     setErrorMessage(null);
 
     try {
-      const { response, payload } = await fetchRecords(abortController.signal);
-      const parsedSuccess = recordsApiSuccessSchema.safeParse(payload);
+      const { response, payload } = await fetchRecords({
+        page: targetPage,
+        pageSize,
+        signal: abortController.signal,
+      });
+      const parsedSuccess = paginatedRecordsApiSuccessSchema.safeParse(payload);
 
       if (response.ok && parsedSuccess.success) {
-        setRecords(parsedSuccess.data.records);
-        recordsCountRef.current = parsedSuccess.data.records.length;
+        setRecords(parsedSuccess.data.items);
+        setPage(parsedSuccess.data.page);
+        setTotalItems(parsedSuccess.data.totalItems);
+        setTotalPages(parsedSuccess.data.totalPages);
         setStatus("ready");
+        hasLoadedRef.current = true;
         return true;
       }
 
@@ -85,7 +98,7 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
     } finally {
       requestAbortRef.current = null;
     }
-  }, []);
+  }, [page, pageSize]);
 
   useEffect(() => {
     return () => {
@@ -100,11 +113,11 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
       return;
     }
 
-    void loadRecords();
-  }, [isActive, refreshToken, loadRecords]);
+    void loadRecords(page);
+  }, [isActive, refreshToken, loadRecords, page]);
 
   const handleRefresh = async () => {
-    const didRefresh = await loadRecords();
+    const didRefresh = await loadRecords(page);
     if (didRefresh) {
       toast.success("Records refreshed", {
         description: "Latest saved feedback rows have been loaded.",
@@ -177,16 +190,18 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
       const parsedSuccess = deleteRecordApiSuccessSchema.safeParse(payload);
 
       if (response.ok && parsedSuccess.success) {
-        setRecords((current) => {
-          const nextRecords = current.filter(
-            (currentRecord) => currentRecord.id !== parsedSuccess.data.id,
-          );
-          recordsCountRef.current = nextRecords.length;
-          return nextRecords;
-        });
         setExpandedRecordId((current) =>
           current === parsedSuccess.data.id ? null : current,
         );
+        const nextTotalItems = Math.max(totalItems - 1, 0);
+        const nextTotalPages =
+          nextTotalItems === 0 ? 0 : Math.ceil(nextTotalItems / pageSize);
+        const nextPage =
+          page > 1 && records.length === 1 ? Math.max(page - 1, 1) : page;
+        setTotalItems(nextTotalItems);
+        setTotalPages(nextTotalPages);
+        setPage(nextPage);
+        await loadRecords(nextPage);
         toast.success("Record deleted", {
           description: "The selected record was removed.",
         });
@@ -219,8 +234,11 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
                 <Database className="size-3.5" />
                 Records
               </Badge>
-              <Badge variant={records.length > 0 ? "success" : "outline"}>
-                {records.length} saved row{records.length === 1 ? "" : "s"}
+              <Badge variant={totalItems > 0 ? "success" : "outline"}>
+                {totalItems} saved row{totalItems === 1 ? "" : "s"}
+              </Badge>
+              <Badge variant="outline">
+                Page {totalPages === 0 ? 0 : page} of {totalPages}
               </Badge>
             </div>
             <CardTitle>Saved feedback records</CardTitle>
@@ -361,6 +379,38 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
                 </table>
               </div>
             </div>
+            {records.length > 0 || totalItems > 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-border/70 bg-secondary/20 px-4 py-3 text-sm">
+                <span className="text-muted-foreground">
+                  Showing {records.length} row{records.length === 1 ? "" : "s"} on
+                  this page.
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    disabled={page <= 1 || status === "loading"}
+                    onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                    size="sm"
+                    variant="outline"
+                  >
+                    <ChevronLeft className="size-4" />
+                    Previous
+                  </Button>
+                  <Button
+                    disabled={totalPages === 0 || page >= totalPages || status === "loading"}
+                    onClick={() =>
+                      setPage((current) =>
+                        totalPages === 0 ? current : Math.min(current + 1, totalPages),
+                      )
+                    }
+                    size="sm"
+                    variant="outline"
+                  >
+                    Next
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
       </CardContent>
@@ -368,8 +418,16 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
   );
 }
 
-async function fetchRecords(signal?: AbortSignal) {
-  const response = await fetch("/api/records", {
+async function fetchRecords({
+  page,
+  pageSize,
+  signal,
+}: {
+  page: number;
+  pageSize: number;
+  signal?: AbortSignal;
+}) {
+  const response = await fetch(`/api/records?page=${page}&pageSize=${pageSize}`, {
     method: "GET",
     cache: "no-store",
     signal,

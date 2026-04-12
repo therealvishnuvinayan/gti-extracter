@@ -29,7 +29,7 @@ type ResultTabsProps = {
   saveStatus: "idle" | "saving" | "saved" | "error";
   onCopyDocument: (document: ProcessedFeedbackDocument) => void;
   onDownloadExcel: () => void;
-  onSaveToDatabase: () => void;
+  onSaveToDatabase?: () => void;
   onClear: () => void;
 };
 
@@ -146,30 +146,32 @@ export function ResultTabs({
                 <Expand className="size-4" />
               </Button>
               <div className="grid w-full gap-2 sm:grid-cols-2 2xl:w-auto 2xl:min-w-[28rem]">
-                <Button
-                  className="w-full justify-center"
-                  disabled={!result || saveStatus === "saving" || saveStatus === "saved"}
-                  onClick={onSaveToDatabase}
-                  size="sm"
-                  variant="outline"
-                >
-                  {saveStatus === "saving" ? (
-                    <>
-                      <LoaderCircle className="size-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : saveStatus === "saved" ? (
-                    <>
-                      <Database className="size-4" />
-                      Saved
-                    </>
-                  ) : (
-                    <>
-                      <Database className="size-4" />
-                      Save records
-                    </>
-                  )}
-                </Button>
+                {onSaveToDatabase ? (
+                  <Button
+                    className="w-full justify-center"
+                    disabled={!result || saveStatus === "saving" || saveStatus === "saved"}
+                    onClick={onSaveToDatabase}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {saveStatus === "saving" ? (
+                      <>
+                        <LoaderCircle className="size-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : saveStatus === "saved" ? (
+                      <>
+                        <Database className="size-4" />
+                        Saved
+                      </>
+                    ) : (
+                      <>
+                        <Database className="size-4" />
+                        Save records
+                      </>
+                    )}
+                  </Button>
+                ) : null}
                 <Button
                   className="w-full justify-center"
                   disabled={!activeDocument}
@@ -184,7 +186,12 @@ export function ResultTabs({
                   <Sheet className="size-4" />
                   Download Excel
                 </Button>
-                <Button className="w-full justify-center sm:col-span-2" onClick={onClear} size="sm" variant="ghost">
+                <Button
+                  className={`w-full justify-center ${onSaveToDatabase ? "sm:col-span-2" : "sm:col-span-1"}`}
+                  onClick={onClear}
+                  size="sm"
+                  variant="ghost"
+                >
                   <Trash2 className="size-4" />
                   Clear
                 </Button>

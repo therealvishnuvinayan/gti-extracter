@@ -163,6 +163,99 @@ export const deleteRecordApiSuccessSchema = z.object({
   id: z.string(),
 });
 
+export const extractionBatchStatusSchema = z.enum([
+  "queued",
+  "processing",
+  "completed",
+  "partial",
+  "cancelled",
+  "failed",
+]);
+
+export const extractionBatchItemStatusSchema = z.enum([
+  "queued",
+  "processing",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+export const extractionBatchItemSchema = z
+  .object({
+    id: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    batchId: z.string(),
+    fileName: z.string(),
+    mimeType: z.string().nullable(),
+    status: extractionBatchItemStatusSchema,
+    errorMessage: z.string().nullable(),
+    sourceFileName: z.string().nullable(),
+    feedbackId: z.string().nullable(),
+    queueOrder: z.number().int().nonnegative(),
+    startedAt: z.string().nullable(),
+    finishedAt: z.string().nullable(),
+  })
+  .strict();
+
+export const extractionBatchSchema = z
+  .object({
+    id: z.string(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    status: extractionBatchStatusSchema,
+    totalFiles: z.number().int().nonnegative(),
+    processedFiles: z.number().int().nonnegative(),
+    successFiles: z.number().int().nonnegative(),
+    failedFiles: z.number().int().nonnegative(),
+    cancelledFiles: z.number().int().nonnegative(),
+    queuedFiles: z.number().int().nonnegative(),
+    processingFiles: z.number().int().nonnegative(),
+    completedFiles: z.number().int().nonnegative(),
+    completionRatio: z.number().min(0).max(1),
+    currentItemId: z.string().nullable(),
+    currentFileName: z.string().nullable(),
+  })
+  .strict();
+
+export const createBatchApiSuccessSchema = z.object({
+  success: z.literal(true),
+  batch: extractionBatchSchema,
+  items: z.array(extractionBatchItemSchema),
+});
+
+export const batchApiSuccessSchema = z.object({
+  success: z.literal(true),
+  batch: extractionBatchSchema,
+});
+
+export const batchItemsApiSuccessSchema = z.object({
+  success: z.literal(true),
+  items: z.array(extractionBatchItemSchema),
+});
+
+export const batchListApiSuccessSchema = z.object({
+  success: z.literal(true),
+  batches: z.array(extractionBatchSchema),
+});
+
+export const processNextBatchItemApiSuccessSchema = z.object({
+  success: z.literal(true),
+  batch: extractionBatchSchema,
+  item: extractionBatchItemSchema.nullable(),
+  record: feedbackRecordSchema.nullable().optional(),
+  document: processedFeedbackDocumentSchema.nullable().optional(),
+});
+
+export const paginatedRecordsApiSuccessSchema = z.object({
+  success: z.literal(true),
+  items: z.array(feedbackRecordSchema),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+});
+
 export type ProcessedFeedbackDocument = z.infer<
   typeof processedFeedbackDocumentSchema
 >;
@@ -170,6 +263,12 @@ export type ExtractionBatchResult = z.infer<typeof extractionBatchResultSchema>;
 export type ExtractApiErrorCode = z.infer<typeof extractApiErrorCodeSchema>;
 export type BasicApiError = z.infer<typeof basicApiErrorSchema>;
 export type FeedbackRecord = z.infer<typeof feedbackRecordSchema>;
+export type PersistedExtractionBatch = z.infer<typeof extractionBatchSchema>;
+export type PersistedExtractionBatchItem = z.infer<typeof extractionBatchItemSchema>;
+export type ExtractionBatchStatus = z.infer<typeof extractionBatchStatusSchema>;
+export type ExtractionBatchItemStatus = z.infer<
+  typeof extractionBatchItemStatusSchema
+>;
 export type {
   PageAnswerType,
   PageExtractedItem,

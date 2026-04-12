@@ -48,4 +48,62 @@ model Feedback {
 
   confidenceNotes Json?
   missingFields   Json?
+
+  batchItems ExtractionBatchItem[]
+}
+
+enum ExtractionBatchStatus {
+  queued
+  processing
+  completed
+  partial
+  cancelled
+  failed
+}
+
+enum ExtractionBatchItemStatus {
+  queued
+  processing
+  completed
+  failed
+  cancelled
+}
+
+model ExtractionBatch {
+  id             String                @id @default(cuid())
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  status         ExtractionBatchStatus @default(queued)
+  totalFiles     Int
+  processedFiles Int                   @default(0)
+  successFiles   Int                   @default(0)
+  failedFiles    Int                   @default(0)
+  cancelledFiles Int                   @default(0)
+  items          ExtractionBatchItem[]
+
+  @@index([status, createdAt])
+}
+
+model ExtractionBatchItem {
+  id              String                    @id @default(cuid())
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  batchId         String
+  batch           ExtractionBatch           @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  fileName        String
+  mimeType        String?
+  status          ExtractionBatchItemStatus @default(queued)
+  errorMessage    String?
+  fileStoragePath String?
+  sourceFileName  String?
+  feedbackId      String?
+  feedback        Feedback?                 @relation(fields: [feedbackId], references: [id], onDelete: SetNull)
+  queueOrder      Int
+  startedAt       DateTime?
+  finishedAt      DateTime?
+
+  @@index([batchId, queueOrder])
+  @@index([batchId, status, queueOrder])
+  @@index([feedbackId])
+  @@unique([batchId, queueOrder])
 }

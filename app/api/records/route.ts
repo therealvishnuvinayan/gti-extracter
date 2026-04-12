@@ -1,30 +1,49 @@
 import { NextResponse } from "next/server";
+import { DEFAULT_RECORDS_PAGE_SIZE, resolvePaginationParams } from "@/lib/batches/shared";
 import { serializeFeedbackRecord } from "@/lib/feedback-records";
 import { getPrismaClient } from "@/lib/prisma";
 import {
   deleteRecordApiSuccessSchema,
-  recordsApiSuccessSchema,
+  paginatedRecordsApiSuccessSchema,
   type BasicApiError,
 } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     assertDatabaseConfigured();
 
-    const prisma = getPrismaClient();
-    const records = await prisma.feedback.findMany({
-      orderBy: {
-        createdAt: "desc",
-      },
+    const { searchParams } = new URL(request.url);
+    const pagination = resolvePaginationParams({
+      page: searchParams.get("page"),
+      pageSize: searchParams.get("pageSize"),
     });
+    const prisma = getPrismaClient();
+    const [totalItems, records] = await prisma.$transaction([
+      prisma.feedback.count(),
+      prisma.feedback.findMany({
+        orderBy: {
+          createdAt: "desc",
+        },
+        skip: (pagination.page - 1) * pagination.pageSize,
+        take: pagination.pageSize,
+      }),
+    ]);
+    const totalPages =
+      totalItems === 0
+        ? 0
+        : Math.ceil(totalItems / Math.max(pagination.pageSize, DEFAULT_RECORDS_PAGE_SIZE));
 
     return NextResponse.json(
-      recordsApiSuccessSchema.parse({
+      paginatedRecordsApiSuccessSchema.parse({
         success: true,
-        records: records.map(serializeFeedbackRecord),
+        items: records.map(serializeFeedbackRecord),
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        totalItems,
+        totalPages,
       }),
     );
   } catch (error) {

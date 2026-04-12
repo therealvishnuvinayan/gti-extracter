@@ -26,7 +26,7 @@ import {
   type ProcessedFeedbackDocument,
 } from "@/lib/types";
 
-type SupportedSourceFile = {
+export type SupportedSourceFile = {
   fileName: string;
   mimeType: string;
   bytes: Buffer;
@@ -50,7 +50,7 @@ export async function extractFeedbackForms(
   let totalPages = 0;
 
   for (const file of files) {
-    const document = await processSingleFile(file, options);
+    const document = await extractSingleFeedbackFile(file, options);
     documents.push(document);
     totalPages += document.pageCount;
   }
@@ -67,7 +67,7 @@ export async function extractFeedbackForms(
   });
 }
 
-async function processSingleFile(
+export async function extractSingleFeedbackFile(
   {
     bytes,
     fileName,
