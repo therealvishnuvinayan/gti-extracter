@@ -16,6 +16,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const uploadedFiles = collectUploadedFiles(formData);
+    const debug = resolveDebugMode(formData);
 
     if (uploadedFiles.length === 0) {
       throw new ExtractRouteError(
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       throw new ExtractRouteError(
         400,
         "TOO_MANY_FILES",
-        `Upload up to ${MAX_UPLOAD_FILES} feedback forms per batch for demo reliability.`,
+        `Upload up to ${MAX_UPLOAD_FILES} GTI feedback forms per batch.`,
       );
     }
 
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const extraction = await extractFeedbackForms(supportedFiles);
+    const extraction = await extractFeedbackForms(supportedFiles, { debug });
 
     return NextResponse.json({
       success: true,
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
         error: {
           code: "INTERNAL_ERROR",
           message:
-            "Something went wrong while processing the uploaded forms. Please try again.",
+            "Something went wrong while extracting the uploaded GTI forms. Please try again.",
         },
       },
       { status: 500 },
@@ -124,6 +125,16 @@ function collectUploadedFiles(formData: FormData) {
   }
 
   return [];
+}
+
+function resolveDebugMode(formData: FormData) {
+  const rawDebugValue = formData.get("debug");
+
+  if (typeof rawDebugValue === "string") {
+    return /^(1|true|yes|on)$/i.test(rawDebugValue.trim());
+  }
+
+  return /^(1|true|yes|on)$/i.test(process.env.GTI_EXTRACTION_DEBUG ?? "");
 }
 
 class ExtractRouteError extends Error {

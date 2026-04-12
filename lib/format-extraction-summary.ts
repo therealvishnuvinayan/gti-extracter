@@ -1,4 +1,5 @@
 import {
+  getNormalizedFeedbackFieldValue,
   normalizedFeedbackScalarFieldKeys,
   normalizedFeedbackFieldLabels,
   type ProcessedFeedbackDocument,
@@ -7,7 +8,7 @@ import {
 export function formatExtractionSummary(document: ProcessedFeedbackDocument) {
   const structuredFields = normalizedFeedbackScalarFieldKeys
     .map((key) => {
-      const value = document.normalized[key];
+      const value = getNormalizedFeedbackFieldValue(document.normalized, key);
       return `- ${normalizedFeedbackFieldLabels[key]}: ${value || "Blank"}`;
     })
     .join("\n");

@@ -1,27 +1,24 @@
 import "server-only";
 
-import OpenAI from "openai";
+import { extractFieldGroupFromPage, extractSingleFieldFromPage } from "@/lib/gti/extract-field";
+import { normalizeGtiDocument } from "@/lib/gti/normalize";
+import { getFieldGroupsForPage, getTemplateField } from "@/lib/gti/template-fields";
 import {
-  DOCUMENT_NORMALIZATION_JSON_SCHEMA,
-  DOCUMENT_NORMALIZATION_PROMPT,
-  PAGE_EXTRACTION_JSON_SCHEMA,
-  PAGE_EXTRACTION_PROMPT,
-} from "@/lib/extract-prompt";
-import {
-  getDocumentNormalizationModel,
-  getImageInputDetail,
-  getOpenAIClient,
-  getPageExtractionModel,
-  supportsReasoningEffort,
-} from "@/lib/openai";
+  fieldConfidenceSchema,
+  rawPageExtractionSchema,
+  rawPageFieldValueSchema,
+  type ExtractionDebugTrace,
+  type RawPageExtraction,
+  type RawPageFieldValue,
+} from "@/lib/gti/schema";
+import { GTI_EXPECTED_PAGE_COUNT, getGtiPageConfig } from "@/lib/gti/page-map";
+import { type GtiExtractedFieldKey } from "@/lib/gti/template";
 import { renderPdfToPngPages } from "@/lib/pdf";
 import {
   createEmptyNormalizedFeedbackForm,
   extractionBatchResultSchema,
   hasAnyNormalizedFeedbackValue,
   normalizedFeedbackScalarFieldKeys,
-  normalizedFeedbackFormSchema,
-  pageExtractionSchema,
   processedFeedbackDocumentSchema,
   type ExtractionBatchResult,
   type NormalizedFeedbackForm,
@@ -41,16 +38,19 @@ type RenderedSourcePage = {
   bytes: Buffer;
 };
 
+type ExtractFeedbackOptions = {
+  debug?: boolean;
+};
+
 export async function extractFeedbackForms(
   files: SupportedSourceFile[],
+  options: ExtractFeedbackOptions = {},
 ): Promise<ExtractionBatchResult> {
-  getOpenAIClient();
-
   const documents: ProcessedFeedbackDocument[] = [];
   let totalPages = 0;
 
   for (const file of files) {
-    const document = await processSingleFile(file);
+    const document = await processSingleFile(file, options);
     documents.push(document);
     totalPages += document.pageCount;
   }
@@ -67,14 +67,20 @@ export async function extractFeedbackForms(
   });
 }
 
-async function processSingleFile({
-  bytes,
-  fileName,
-  mimeType,
-}: SupportedSourceFile): Promise<ProcessedFeedbackDocument> {
+async function processSingleFile(
+  {
+    bytes,
+    fileName,
+    mimeType,
+  }: SupportedSourceFile,
+  options: ExtractFeedbackOptions,
+): Promise<ProcessedFeedbackDocument> {
   const sourceKind = mimeType === "application/pdf" ? "pdf" : "image";
   let renderedPages: RenderedSourcePage[] = [];
-  let pageExtractions: PageExtraction[] = [];
+  const rawPageResults: RawPageExtraction[] = [];
+  const debugTraces: ExtractionDebugTrace[] = [];
+  let failedPageCount = 0;
+  const documentNotes: string[] = [];
 
   try {
     renderedPages =
@@ -88,47 +94,85 @@ async function processSingleFile({
             },
           ];
 
-    pageExtractions = [];
-
     for (const page of renderedPages) {
-      pageExtractions.push(
-        await extractSinglePage({
+      const pageConfig = getGtiPageConfig(page.pageNumber);
+
+      if (!pageConfig) {
+        documentNotes.push(`Ignored unexpected extra page ${page.pageNumber}.`);
+        continue;
+      }
+
+      try {
+        const pageResult = await extractSinglePage({
           fileName,
           totalPages: renderedPages.length,
           page,
-        }),
-      );
+          debug: options.debug === true,
+        });
+        rawPageResults.push(pageResult.pageResult);
+        debugTraces.push(...pageResult.debugTraces);
+      } catch (error) {
+        failedPageCount += 1;
+        rawPageResults.push(
+          buildBlankRawPageResult({
+            pageNumber: page.pageNumber,
+            message: toExtractionErrorMessage(error),
+          }),
+        );
+      }
     }
 
-    const normalized = await normalizeDocument({
+    const normalizedResult = normalizeGtiDocument({
       fileName,
-      pageExtractions,
+      pageResults: rawPageResults,
+      pageCount: renderedPages.length,
     });
-
-    const combinedTranscription = buildCombinedTranscription(pageExtractions);
-    const isReliable = isDocumentReliable(normalized, pageExtractions);
+    const normalized = {
+      ...normalizedResult.normalized,
+      confidenceNotes: uniqueStrings([
+        ...normalizedResult.normalized.confidenceNotes,
+        ...documentNotes,
+      ]),
+    };
+    const status = isDocumentReliable({
+      failedPageCount,
+      normalized,
+      pageCount: renderedPages.length,
+    })
+      ? "completed"
+      : "failed";
 
     return processedFeedbackDocumentSchema.parse({
       sourceFileName: fileName,
       sourceMimeType: mimeType,
       sourceKind,
       pageCount: renderedPages.length,
-      status: isReliable ? "completed" : "failed",
-      normalized: normalizeFeedbackDocument(normalized, fileName),
-      pageExtractions: pageExtractions.map(normalizePageExtraction),
-      combinedTranscription,
-      errorMessage: isReliable
-        ? ""
-        : "The form could not be normalized with enough reliable detail.",
+      status,
+      normalized,
+      pageExtractions: normalizedResult.pageExtractions,
+      combinedTranscription: normalizedResult.combinedTranscription,
+      errorMessage:
+        status === "completed"
+          ? ""
+          : buildFailureMessage({
+              pageCount: renderedPages.length,
+              failedPageCount,
+              normalized,
+            }),
+      ...(options.debug ? { debug: { fieldTraces: debugTraces } } : {}),
     });
   } catch (error) {
     return buildFailedProcessedDocument({
       fileName,
       mimeType,
       sourceKind,
-      pageCount: renderedPages.length || pageExtractions.length,
-      pageExtractions,
+      pageCount: renderedPages.length || rawPageResults.length,
+      pageExtractions: rawPageResults
+        .map(transformRawPageResultSafely)
+        .filter((page): page is PageExtraction => Boolean(page)),
       message: toExtractionErrorMessage(error),
+      debugTraces,
+      includeDebug: options.debug === true,
     });
   }
 }
@@ -150,269 +194,410 @@ async function extractSinglePage({
   fileName,
   totalPages,
   page,
+  debug,
 }: {
   fileName: string;
   totalPages: number;
   page: RenderedSourcePage;
+  debug: boolean;
 }) {
-  const client = getOpenAIClient();
-  const model = getPageExtractionModel();
-  const imageDetail = getImageInputDetail(model);
-  const response = await createStructuredResponse({
-    client,
-    model,
-    instructions: PAGE_EXTRACTION_PROMPT,
-    schemaName: "gti_feedback_page_extraction",
-    schema: PAGE_EXTRACTION_JSON_SCHEMA,
-    maxOutputTokens: 2600,
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: [
-              "Extract only this single page from a GTI feedback form.",
-              `Source file: ${fileName}`,
-              `Page number: ${page.pageNumber}`,
-              `Total pages in document: ${totalPages}`,
-            ].join("\n"),
-          },
-          {
-            type: "input_image",
-            detail: imageDetail,
-            image_url: `data:${page.mimeType};base64,${page.bytes.toString("base64")}`,
-          },
-        ],
-      },
-    ],
-  });
+  const pageConfig = getGtiPageConfig(page.pageNumber);
 
-  const validated = pageExtractionSchema.safeParse(response);
-
-  if (!validated.success) {
+  if (!pageConfig) {
     throw new FeedbackExtractionError(
-      "INVALID_AI_RESPONSE",
-      `The page extraction response for page ${page.pageNumber} did not match the expected schema.`,
+      "UNCLEAR_DOCUMENT",
+      `Page ${page.pageNumber} does not match the expected GTI page map.`,
     );
   }
 
-  return normalizePageExtraction(validated.data);
-}
-
-async function normalizeDocument({
-  fileName,
-  pageExtractions,
-}: {
-  fileName: string;
-  pageExtractions: PageExtraction[];
-}) {
-  const client = getOpenAIClient();
-  const model = getDocumentNormalizationModel();
-  const response = await createStructuredResponse({
-    client,
-    model,
-    instructions: DOCUMENT_NORMALIZATION_PROMPT,
-    schemaName: "gti_feedback_document_normalized",
-    schema: DOCUMENT_NORMALIZATION_JSON_SCHEMA,
-    maxOutputTokens: 2200,
-    input: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: [
-              "Normalize the supplied page extraction JSON into one strict GTI feedback-form record.",
-              `Source file name: ${fileName}`,
-              "",
-              JSON.stringify(pageExtractions, null, 2),
-            ].join("\n"),
-          },
-        ],
-      },
-    ],
-  });
-
-  const validated = normalizedFeedbackFormSchema.safeParse(response);
-
-  if (!validated.success) {
-    throw new FeedbackExtractionError(
-      "INVALID_AI_RESPONSE",
-      "The document normalization response did not match the expected schema.",
-    );
-  }
-
-  return validated.data;
-}
-
-async function createStructuredResponse({
-  client,
-  model,
-  instructions,
-  input,
-  schemaName,
-  schema,
-  maxOutputTokens,
-}: {
-  client: OpenAI;
-  model: string;
-  instructions: string;
-  input: OpenAI.Responses.ResponseCreateParams["input"];
-  schemaName: string;
-  schema: Record<string, unknown>;
-  maxOutputTokens: number;
-}) {
-  try {
-    const response = await client.responses.create({
-      model,
-      store: false,
-      ...(supportsReasoningEffort(model)
-        ? {
-            reasoning: {
-              effort: "medium" as const,
-            },
-          }
-        : {}),
-      instructions,
-      max_output_tokens: maxOutputTokens,
-      input,
-      text: {
-        format: {
-          type: "json_schema",
-          name: schemaName,
-          strict: true,
-          schema,
-        },
-      },
-    });
-
-    const rawOutput = response.output_text?.trim();
-
-    if (!rawOutput) {
-      throw new FeedbackExtractionError(
-        "INVALID_AI_RESPONSE",
-        "OpenAI returned an empty structured extraction response.",
-      );
-    }
-
+  const pageGroups = getFieldGroupsForPage(page.pageNumber);
+  const pageFields = new Map<GtiExtractedFieldKey, RawPageFieldValue>();
+  const pageNotes: string[] = [];
+  const debugTraces: ExtractionDebugTrace[] = [];
+  const groupResults = await mapWithConcurrency(pageGroups, 2, async (group) => {
     try {
-      return JSON.parse(rawOutput) as unknown;
-    } catch {
-      throw new FeedbackExtractionError(
-        "INVALID_AI_RESPONSE",
-        "OpenAI returned malformed JSON for the structured extraction response.",
-      );
+      return {
+        group,
+        result: await extractFieldGroupFromPage({
+          fileName,
+          totalPages,
+          page,
+          group,
+        }),
+      } as const;
+    } catch (error) {
+      const message = toExtractionErrorMessage(error);
+      const fallbackResults = await mapWithConcurrency(group.fieldKeys, 2, async (fieldKey) => {
+        try {
+          return await extractSingleFieldFromPage({
+            fileName,
+            totalPages,
+            page,
+            fieldKey,
+          });
+        } catch (singleFieldError) {
+          return {
+            groupId: `field_${fieldKey}`,
+            pageNumber: page.pageNumber,
+            notes: [`${getTemplateField(fieldKey).label}: ${toExtractionErrorMessage(singleFieldError)}`],
+            fields: {
+              [fieldKey]: buildBlankRawFieldValue(
+                toExtractionErrorMessage(singleFieldError),
+              ),
+            } as Record<GtiExtractedFieldKey, RawPageFieldValue>,
+            debugTraces: [],
+          };
+        }
+      });
+
+      return {
+        group,
+        errorMessage: message,
+        fallbackResults,
+      } as const;
     }
-  } catch (error) {
-    if (error instanceof FeedbackExtractionError) {
-      throw error;
+  });
+
+  for (const groupResult of groupResults) {
+    if ("result" in groupResult && groupResult.result) {
+      groupResult.result.notes.forEach((note) => pageNotes.push(note));
+      groupResult.result.debugTraces.forEach((trace) => debugTraces.push(trace));
+
+      for (const fieldKey of groupResult.group.fieldKeys) {
+        pageFields.set(fieldKey, groupResult.result.fields[fieldKey]);
+      }
+
+      continue;
     }
 
-    throw new FeedbackExtractionError(
-      "OPENAI_ERROR",
-      error instanceof Error
-        ? error.message
-        : "OpenAI could not process the document right now.",
+    pageNotes.push(`${groupResult.group.label}: ${groupResult.errorMessage}`);
+
+    for (const fallback of groupResult.fallbackResults) {
+      fallback.notes.forEach((note) => pageNotes.push(note));
+      fallback.debugTraces.forEach((trace) => debugTraces.push(trace));
+
+      for (const fieldKey of Object.keys(fallback.fields) as GtiExtractedFieldKey[]) {
+        pageFields.set(fieldKey, fallback.fields[fieldKey]);
+      }
+    }
+  }
+
+  const fallbackFieldKeys = pageGroups.flatMap((group) =>
+    group.fieldKeys.filter((fieldKey) =>
+      shouldRunFieldFallback(fieldKey, pageFields.get(fieldKey)),
+    ),
+  );
+  const uniqueFallbackFieldKeys = [...new Set(fallbackFieldKeys)];
+
+  const fallbackResults = await mapWithConcurrency(
+    uniqueFallbackFieldKeys,
+    2,
+    async (fieldKey) => {
+      try {
+        return {
+          fieldKey,
+          result: await extractSingleFieldFromPage({
+            fileName,
+            totalPages,
+            page,
+            fieldKey,
+          }),
+        } as const;
+      } catch (error) {
+        return {
+          fieldKey,
+          errorMessage: toExtractionErrorMessage(error),
+        } as const;
+      }
+    },
+  );
+
+  for (const fallbackResult of fallbackResults) {
+    if ("result" in fallbackResult && fallbackResult.result) {
+      const primary = pageFields.get(fallbackResult.fieldKey);
+      const fallbackField = fallbackResult.result.fields[fallbackResult.fieldKey];
+
+      if (shouldReplaceFieldResult(fallbackResult.fieldKey, primary, fallbackField)) {
+        pageFields.set(fallbackResult.fieldKey, fallbackField);
+      }
+
+      fallbackResult.result.notes.forEach((note) => pageNotes.push(note));
+      fallbackResult.result.debugTraces.forEach((trace) => debugTraces.push(trace));
+      continue;
+    }
+
+    pageNotes.push(
+      `${getTemplateField(fallbackResult.fieldKey).label}: ${fallbackResult.errorMessage}`,
     );
   }
-}
 
-function normalizePageExtraction(page: PageExtraction): PageExtraction {
+  const fields = Object.fromEntries(
+    pageConfig.fieldKeys.map((fieldKey) => [
+      fieldKey,
+      pageFields.get(fieldKey) ?? buildBlankRawFieldValue("No extraction data returned for this field."),
+    ]),
+  );
+  const missingOrUnclearFields = pageConfig.fieldKeys.filter((fieldKey) =>
+    shouldFlagFieldForReview(fields[fieldKey]),
+  );
+  const transcribedText = buildPageTranscription(pageConfig.fieldKeys, fields);
+  const filledCount = pageConfig.fieldKeys.filter((fieldKey) =>
+    hasVisibleFieldValue(fields[fieldKey]),
+  ).length;
+
   return {
-    pageNumber: page.pageNumber,
-    sectionTitle: cleanString(page.sectionTitle),
-    pageSummary: cleanString(page.pageSummary),
-    transcribedText: cleanString(page.transcribedText),
-    extractedItems: page.extractedItems.map((item) => ({
-      label: cleanString(item.label),
-      answer: cleanString(item.answer),
-      answerType: item.answerType,
-      selectedOptions: normalizeStringArray(item.selectedOptions),
-      evidence: cleanString(item.evidence),
-      isBlank: item.isBlank,
-      uncertainty: cleanString(item.uncertainty),
-    })),
-    confidenceNotes: normalizeStringArray(page.confidenceNotes),
-    missingOrUnclearFields: normalizeStringArray(page.missingOrUnclearFields),
+    pageResult: rawPageExtractionSchema.parse({
+      pageNumber: page.pageNumber,
+      sectionTitle: pageConfig.title,
+      pageSummary: `${pageConfig.description} Captured ${filledCount} of ${pageConfig.fieldKeys.length} fields.`,
+      transcribedText,
+      confidenceNotes: uniqueStrings(pageNotes),
+      missingOrUnclearFields,
+      fields,
+    }),
+    debugTraces: debug ? dedupeDebugTraces(debugTraces) : [],
   };
 }
 
-function normalizeFeedbackDocument(
-  document: NormalizedFeedbackForm,
-  fileName: string,
-): NormalizedFeedbackForm {
-  return {
-    sourceFileName: cleanString(document.sourceFileName) || fileName,
-    cityAreaName: cleanString(document.cityAreaName),
-    milanoSkuTested: cleanString(document.milanoSkuTested),
-    cigaretteFilterType: cleanString(document.cigaretteFilterType),
-    respondentType: cleanString(document.respondentType),
-    respondentAgeGroup: cleanString(document.respondentAgeGroup),
-    smokingFrequency: cleanString(document.smokingFrequency),
-    drawEffort: cleanString(document.drawEffort),
-    smokeVolume: cleanString(document.smokeVolume),
-    smokeSmoothness: cleanString(document.smokeSmoothness),
-    tasteFlavorFeeling: cleanString(document.tasteFlavorFeeling),
-    aftertasteFeeling: cleanString(document.aftertasteFeeling),
-    filterComfortFeel: cleanString(document.filterComfortFeel),
-    burningSpeed: cleanString(document.burningSpeed),
-    ashQualityColor: cleanString(document.ashQualityColor),
-    tasteFlavorConsistency: cleanString(document.tasteFlavorConsistency),
-    outerPackVisualAppeal: cleanString(document.outerPackVisualAppeal),
-    packColourAttractiveness: cleanString(document.packColourAttractiveness),
-    packQualityFeelOpeningStrength: cleanString(
-      document.packQualityFeelOpeningStrength,
-    ),
-    priceValueMilanoOdysseyBlack: cleanString(
-      document.priceValueMilanoOdysseyBlack,
-    ),
-    priceValueMilanoOdysseyGold: cleanString(document.priceValueMilanoOdysseyGold),
-    priceValueMilanoCherryVintage: cleanString(
-      document.priceValueMilanoCherryVintage,
-    ),
-    overallSatisfactionRating: cleanString(document.overallSatisfactionRating),
-    mainReasonForRating: cleanString(document.mainReasonForRating),
-    wouldBuy: cleanString(document.wouldBuy),
-    wouldRecommend: cleanString(document.wouldRecommend),
-    likedMost: cleanString(document.likedMost),
-    shouldImprove: cleanString(document.shouldImprove),
-    brandSmokedMostOften: cleanString(document.brandSmokedMostOften),
-    confidenceNotes: normalizeStringArray(document.confidenceNotes),
-    missingOrUnclearFields: normalizeStringArray(document.missingOrUnclearFields),
-  };
-}
-
-function buildCombinedTranscription(pageExtractions: PageExtraction[]) {
-  return pageExtractions
-    .map((page) =>
-      [
-        `Page ${page.pageNumber}`,
-        page.sectionTitle ? `Section: ${page.sectionTitle}` : "",
-        page.transcribedText,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    )
-    .join("\n\n");
-}
-
-function isDocumentReliable(
-  normalized: NormalizedFeedbackForm,
-  pageExtractions: PageExtraction[],
+function shouldRunFieldFallback(
+  fieldKey: Parameters<typeof getTemplateField>[0],
+  value: RawPageFieldValue | undefined,
 ) {
-  const hasStructuredValues = hasAnyNormalizedFeedbackValue(normalized);
-  const hasPageAnswers = pageExtractions.some((page) =>
-    page.extractedItems.some(
-      (item) =>
-        item.answer.trim().length > 0 || item.selectedOptions.some(Boolean),
-    ),
+  const field = getTemplateField(fieldKey);
+  const result = value ?? buildBlankRawFieldValue("No extraction data returned for this field.");
+
+  if (field.pageNumber < 2) {
+    return false;
+  }
+
+  if (looksLikeQuestionEcho(fieldKey, result.value)) {
+    return true;
+  }
+
+  if (result.confidence !== "high") {
+    return true;
+  }
+
+  if (result.uncertainty.trim()) {
+    return true;
+  }
+
+  if (result.isBlank && result.confidence !== "high") {
+    return true;
+  }
+
+  return false;
+}
+
+function shouldReplaceFieldResult(
+  fieldKey: Parameters<typeof getTemplateField>[0],
+  primary: RawPageFieldValue | undefined,
+  fallback: RawPageFieldValue,
+) {
+  if (!primary) {
+    return true;
+  }
+
+  if (looksLikeQuestionEcho(fieldKey, primary.value) && !looksLikeQuestionEcho(fieldKey, fallback.value)) {
+    return true;
+  }
+
+  const primaryScore = scoreFieldResult(fieldKey, primary);
+  const fallbackScore = scoreFieldResult(fieldKey, fallback);
+
+  if (fallback.isBlank === false && primary.isBlank === true) {
+    return true;
+  }
+
+  return fallbackScore > primaryScore;
+}
+
+function scoreFieldResult(
+  fieldKey: Parameters<typeof getTemplateField>[0],
+  result: RawPageFieldValue,
+) {
+  const confidenceWeight =
+    result.confidence === "high" ? 30 : result.confidence === "medium" ? 20 : 10;
+  const nonBlankWeight = hasVisibleFieldValue(result) ? 6 : result.isBlank ? 3 : 0;
+  const uncertaintyPenalty = result.uncertainty.trim() ? -8 : 0;
+  const echoPenalty = looksLikeQuestionEcho(fieldKey, result.value) ? -20 : 0;
+
+  return confidenceWeight + nonBlankWeight + uncertaintyPenalty + echoPenalty;
+}
+
+function buildPageTranscription(
+  fieldKeys: readonly GtiExtractedFieldKey[],
+  fields: Record<string, RawPageFieldValue>,
+) {
+  return fieldKeys
+    .map((fieldKey) => {
+      const rawField = fields[fieldKey];
+      const displayValue = getRawFieldDisplayValue(rawField);
+
+      if (!displayValue) {
+        return "";
+      }
+
+      return `${getTemplateField(fieldKey).label}: ${displayValue}`;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function shouldFlagFieldForReview(value: RawPageFieldValue | undefined) {
+  if (!value) {
+    return true;
+  }
+
+  if (value.uncertainty.trim()) {
+    return true;
+  }
+
+  return value.confidence === "low" && !value.isBlank;
+}
+
+function hasVisibleFieldValue(value: RawPageFieldValue | undefined) {
+  if (!value) {
+    return false;
+  }
+
+  return Boolean(getRawFieldDisplayValue(value));
+}
+
+function getRawFieldDisplayValue(value: RawPageFieldValue | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  if (value.selectedValues.length > 0) {
+    return value.selectedValues.join(", ");
+  }
+
+  return value.value.trim();
+}
+
+function looksLikeQuestionEcho(
+  fieldKey: Parameters<typeof getTemplateField>[0],
+  value: string,
+) {
+  const cleanedValue = normalizeToken(value);
+
+  if (!cleanedValue) {
+    return false;
+  }
+
+  const field = getTemplateField(fieldKey);
+  const labelToken = normalizeToken(field.label);
+  const questionToken = normalizeToken(field.question);
+
+  return (
+    cleanedValue === labelToken ||
+    cleanedValue === questionToken ||
+    labelToken.includes(cleanedValue) ||
+    questionToken.includes(cleanedValue)
   );
-  const hasTranscription = pageExtractions.some(
-    (page) => page.transcribedText.trim().length > 16,
+}
+
+function buildBlankRawPageResult({
+  pageNumber,
+  message,
+}: {
+  pageNumber: number;
+  message: string;
+}): RawPageExtraction {
+  const pageConfig = getGtiPageConfig(pageNumber);
+
+  if (!pageConfig) {
+    return rawPageExtractionSchema.parse({
+      pageNumber,
+      sectionTitle: "",
+      pageSummary: "",
+      transcribedText: "",
+      confidenceNotes: [message],
+      missingOrUnclearFields: [],
+      fields: {},
+    });
+  }
+
+  const fields = Object.fromEntries(
+    pageConfig.fieldKeys.map((fieldKey) => [fieldKey, buildBlankRawFieldValue(message)]),
   );
 
-  return hasStructuredValues || hasPageAnswers || hasTranscription;
+  return rawPageExtractionSchema.parse({
+    pageNumber,
+    sectionTitle: pageConfig.title,
+    pageSummary: pageConfig.description,
+    transcribedText: "",
+    confidenceNotes: [message],
+    missingOrUnclearFields: pageConfig.fieldKeys,
+    fields,
+  });
+}
+
+function buildBlankRawFieldValue(message: string): RawPageFieldValue {
+  return rawPageFieldValueSchema.parse({
+    value: "",
+    selectedValues: [],
+    evidence: "",
+    reasoning: "",
+    confidence: fieldConfidenceSchema.parse("low"),
+    isBlank: true,
+    uncertainty: message,
+  });
+}
+
+function transformRawPageResultSafely(page: RawPageExtraction) {
+  const validated = rawPageExtractionSchema.safeParse(page);
+
+  if (!validated.success) {
+    return null;
+  }
+
+  return normalizeGtiDocument({
+    fileName: "",
+    pageResults: [validated.data],
+    pageCount: 1,
+  }).pageExtractions[0] ?? null;
+}
+
+function isDocumentReliable({
+  failedPageCount,
+  normalized,
+  pageCount,
+}: {
+  failedPageCount: number;
+  normalized: NormalizedFeedbackForm;
+  pageCount: number;
+}) {
+  return (
+    failedPageCount === 0 &&
+    pageCount >= GTI_EXPECTED_PAGE_COUNT &&
+    hasAnyNormalizedFeedbackValue(normalized)
+  );
+}
+
+function buildFailureMessage({
+  pageCount,
+  failedPageCount,
+  normalized,
+}: {
+  pageCount: number;
+  failedPageCount: number;
+  normalized: NormalizedFeedbackForm;
+}) {
+  if (pageCount < GTI_EXPECTED_PAGE_COUNT) {
+    return `This file is incomplete. The GTI feedback form expects ${GTI_EXPECTED_PAGE_COUNT} pages, but only ${pageCount} page${pageCount === 1 ? "" : "s"} were provided.`;
+  }
+
+  if (failedPageCount > 0) {
+    return "One or more GTI form pages could not be read with enough confidence. Review the flagged fields before export.";
+  }
+
+  if (!hasAnyNormalizedFeedbackValue(normalized)) {
+    return "The GTI feedback form could not be normalized with enough reliable detail.";
+  }
+
+  return "The GTI feedback form needs review before export.";
 }
 
 function buildFailedProcessedDocument({
@@ -422,6 +607,8 @@ function buildFailedProcessedDocument({
   pageCount,
   pageExtractions,
   message,
+  debugTraces,
+  includeDebug,
 }: {
   fileName: string;
   mimeType: string;
@@ -429,6 +616,8 @@ function buildFailedProcessedDocument({
   pageCount: number;
   pageExtractions: PageExtraction[];
   message: string;
+  debugTraces: ExtractionDebugTrace[];
+  includeDebug: boolean;
 }) {
   const normalized = createEmptyNormalizedFeedbackForm(fileName);
   normalized.confidenceNotes = uniqueStrings([
@@ -447,22 +636,70 @@ function buildFailedProcessedDocument({
     pageCount,
     status: "failed",
     normalized,
-    pageExtractions: pageExtractions.map(normalizePageExtraction),
-    combinedTranscription: buildCombinedTranscription(pageExtractions),
+    pageExtractions,
+    combinedTranscription: pageExtractions
+      .map((page) => page.transcribedText)
+      .filter(Boolean)
+      .join("\n\n"),
     errorMessage: message,
+    ...(includeDebug ? { debug: { fieldTraces: dedupeDebugTraces(debugTraces) } } : {}),
   });
 }
 
-function normalizeStringArray(values: string[]) {
-  return uniqueStrings(values.map(cleanString).filter(Boolean));
+async function mapWithConcurrency<TInput, TOutput>(
+  items: readonly TInput[],
+  concurrency: number,
+  iteratee: (item: TInput) => Promise<TOutput>,
+) {
+  const results: TOutput[] = new Array(items.length);
+  let nextIndex = 0;
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        results[currentIndex] = await iteratee(items[currentIndex]);
+      }
+    }),
+  );
+
+  return results;
 }
 
-function cleanString(value: string) {
-  return value.replace(/\r\n/g, "\n").trim();
+function dedupeDebugTraces(traces: ExtractionDebugTrace[]) {
+  const seen = new Set<string>();
+  const unique: ExtractionDebugTrace[] = [];
+
+  for (const trace of traces) {
+    const key = [
+      trace.field,
+      trace.page,
+      trace.groupId,
+      trace.cropLabel,
+      trace.value,
+      trace.selectedValues.join("|"),
+      trace.confidence,
+      trace.uncertainty,
+    ].join("::");
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    unique.push(trace);
+  }
+
+  return unique;
 }
 
-function uniqueStrings(values: string[]) {
-  return [...new Set(values.filter(Boolean))];
+function uniqueStrings(values: readonly string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function normalizeToken(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 function toExtractionErrorMessage(error: unknown) {

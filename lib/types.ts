@@ -1,4 +1,25 @@
 import { z } from "zod";
+import {
+  createEmptyNormalizedFeedbackForm as createEmptyGtiNormalizedFeedbackForm,
+  extractionDebugSchema,
+  getNormalizedFieldDisplayValue,
+  gtiFieldLabels as normalizedFeedbackFieldLabels,
+  gtiStructuredFieldKeys as normalizedFeedbackScalarFieldKeys,
+  hasNormalizedFieldValue,
+  normalizedFeedbackFormSchema,
+  pageAnswerTypeSchema,
+  pageExtractedItemSchema,
+  pageExtractionSchema,
+  type NormalizedFeedbackForm,
+  type PageAnswerType,
+  type PageExtractedItem,
+  type PageExtraction,
+} from "@/lib/gti/schema";
+import {
+  gtiFieldKeys,
+  type GtiFieldKey,
+  type GtiStructuredFieldKey,
+} from "@/lib/gti/template";
 
 export const SUPPORTED_SOURCE_FILE_TYPES = [
   "image/jpeg",
@@ -18,154 +39,10 @@ export const ACCEPTED_TEMPLATE_FILE_TYPES = [
   ...SUPPORTED_TEMPLATE_FILE_TYPES,
 ].join(",");
 
-export const normalizedFeedbackScalarFieldKeys = [
-  "sourceFileName",
-  "cityAreaName",
-  "milanoSkuTested",
-  "cigaretteFilterType",
-  "respondentType",
-  "respondentAgeGroup",
-  "smokingFrequency",
-  "drawEffort",
-  "smokeVolume",
-  "smokeSmoothness",
-  "tasteFlavorFeeling",
-  "aftertasteFeeling",
-  "filterComfortFeel",
-  "burningSpeed",
-  "ashQualityColor",
-  "tasteFlavorConsistency",
-  "outerPackVisualAppeal",
-  "packColourAttractiveness",
-  "packQualityFeelOpeningStrength",
-  "priceValueMilanoOdysseyBlack",
-  "priceValueMilanoOdysseyGold",
-  "priceValueMilanoCherryVintage",
-  "overallSatisfactionRating",
-  "mainReasonForRating",
-  "wouldBuy",
-  "wouldRecommend",
-  "likedMost",
-  "shouldImprove",
-  "brandSmokedMostOften",
-] as const;
+export const normalizedFeedbackFieldKeys = gtiFieldKeys;
 
-export const normalizedFeedbackFieldKeys = [
-  ...normalizedFeedbackScalarFieldKeys,
-  "confidenceNotes",
-  "missingOrUnclearFields",
-] as const;
-
-export type NormalizedFeedbackScalarFieldKey =
-  (typeof normalizedFeedbackScalarFieldKeys)[number];
-export type NormalizedFeedbackFieldKey = (typeof normalizedFeedbackFieldKeys)[number];
-
-export const normalizedFeedbackFieldLabels: Record<
-  NormalizedFeedbackFieldKey,
-  string
-> = {
-  sourceFileName: "Source File Name",
-  cityAreaName: "City / Area Name",
-  milanoSkuTested: "Milano SKU Tested",
-  cigaretteFilterType: "Cigarette Filter Type",
-  respondentType: "Respondent Type",
-  respondentAgeGroup: "Respondent Age Group",
-  smokingFrequency: "Smoking Frequency",
-  drawEffort: "Draw Effort",
-  smokeVolume: "Smoke Volume",
-  smokeSmoothness: "Smoke Smoothness",
-  tasteFlavorFeeling: "Taste / Flavor Feeling",
-  aftertasteFeeling: "Aftertaste Feeling",
-  filterComfortFeel: "Filter Comfort Feel",
-  burningSpeed: "Burning Speed",
-  ashQualityColor: "Ash Quality / Color",
-  tasteFlavorConsistency: "Taste / Flavor Consistency",
-  outerPackVisualAppeal: "Outer Pack Visual Appeal",
-  packColourAttractiveness: "Pack Colour Attractiveness",
-  packQualityFeelOpeningStrength: "Pack Quality / Feel / Opening Strength",
-  priceValueMilanoOdysseyBlack: "Price / Value - Milano Odyssey Black",
-  priceValueMilanoOdysseyGold: "Price / Value - Milano Odyssey Gold",
-  priceValueMilanoCherryVintage: "Price / Value - Milano Cherry Vintage",
-  overallSatisfactionRating: "Overall Satisfaction Rating",
-  mainReasonForRating: "Main Reason For Rating",
-  wouldBuy: "Would Buy",
-  wouldRecommend: "Would Recommend",
-  likedMost: "Liked Most",
-  shouldImprove: "Should Improve",
-  brandSmokedMostOften: "Brand Smoked Most Often",
-  confidenceNotes: "Confidence Notes",
-  missingOrUnclearFields: "Missing Or Unclear Fields",
-};
-
-export const pageAnswerTypeSchema = z.enum([
-  "text",
-  "choice",
-  "rating",
-  "comment",
-  "brand",
-  "numeric",
-  "unknown",
-]);
-
-export const pageExtractedItemSchema = z
-  .object({
-    label: z.string(),
-    answer: z.string(),
-    answerType: pageAnswerTypeSchema,
-    selectedOptions: z.array(z.string()),
-    evidence: z.string(),
-    isBlank: z.boolean(),
-    uncertainty: z.string(),
-  })
-  .strict();
-
-export const pageExtractionSchema = z
-  .object({
-    pageNumber: z.number().int().positive(),
-    sectionTitle: z.string(),
-    pageSummary: z.string(),
-    transcribedText: z.string(),
-    extractedItems: z.array(pageExtractedItemSchema),
-    confidenceNotes: z.array(z.string()),
-    missingOrUnclearFields: z.array(z.string()),
-  })
-  .strict();
-
-export const normalizedFeedbackFormSchema = z
-  .object({
-    sourceFileName: z.string(),
-    cityAreaName: z.string(),
-    milanoSkuTested: z.string(),
-    cigaretteFilterType: z.string(),
-    respondentType: z.string(),
-    respondentAgeGroup: z.string(),
-    smokingFrequency: z.string(),
-    drawEffort: z.string(),
-    smokeVolume: z.string(),
-    smokeSmoothness: z.string(),
-    tasteFlavorFeeling: z.string(),
-    aftertasteFeeling: z.string(),
-    filterComfortFeel: z.string(),
-    burningSpeed: z.string(),
-    ashQualityColor: z.string(),
-    tasteFlavorConsistency: z.string(),
-    outerPackVisualAppeal: z.string(),
-    packColourAttractiveness: z.string(),
-    packQualityFeelOpeningStrength: z.string(),
-    priceValueMilanoOdysseyBlack: z.string(),
-    priceValueMilanoOdysseyGold: z.string(),
-    priceValueMilanoCherryVintage: z.string(),
-    overallSatisfactionRating: z.string(),
-    mainReasonForRating: z.string(),
-    wouldBuy: z.string(),
-    wouldRecommend: z.string(),
-    likedMost: z.string(),
-    shouldImprove: z.string(),
-    brandSmokedMostOften: z.string(),
-    confidenceNotes: z.array(z.string()),
-    missingOrUnclearFields: z.array(z.string()),
-  })
-  .strict();
+export type NormalizedFeedbackScalarFieldKey = GtiStructuredFieldKey;
+export type NormalizedFeedbackFieldKey = GtiFieldKey;
 
 export const processedFeedbackDocumentSchema = z
   .object({
@@ -178,6 +55,7 @@ export const processedFeedbackDocumentSchema = z
     pageExtractions: z.array(pageExtractionSchema),
     combinedTranscription: z.string(),
     errorMessage: z.string(),
+    debug: extractionDebugSchema.optional(),
   })
   .strict();
 
@@ -285,10 +163,6 @@ export const deleteRecordApiSuccessSchema = z.object({
   id: z.string(),
 });
 
-export type PageAnswerType = z.infer<typeof pageAnswerTypeSchema>;
-export type PageExtractedItem = z.infer<typeof pageExtractedItemSchema>;
-export type PageExtraction = z.infer<typeof pageExtractionSchema>;
-export type NormalizedFeedbackForm = z.infer<typeof normalizedFeedbackFormSchema>;
 export type ProcessedFeedbackDocument = z.infer<
   typeof processedFeedbackDocumentSchema
 >;
@@ -296,11 +170,26 @@ export type ExtractionBatchResult = z.infer<typeof extractionBatchResultSchema>;
 export type ExtractApiErrorCode = z.infer<typeof extractApiErrorCodeSchema>;
 export type BasicApiError = z.infer<typeof basicApiErrorSchema>;
 export type FeedbackRecord = z.infer<typeof feedbackRecordSchema>;
+export type {
+  PageAnswerType,
+  PageExtractedItem,
+  PageExtraction,
+  NormalizedFeedbackForm,
+};
 
 export type NormalizedFeedbackFieldView = {
   id: NormalizedFeedbackScalarFieldKey;
   label: string;
   value: string;
+};
+
+export {
+  pageAnswerTypeSchema,
+  pageExtractedItemSchema,
+  pageExtractionSchema,
+  normalizedFeedbackFormSchema,
+  normalizedFeedbackScalarFieldKeys,
+  normalizedFeedbackFieldLabels,
 };
 
 export function isSupportedFileType(value: string) {
@@ -351,42 +240,16 @@ export function resolveTemplateWorkbookType(fileName: string, mimeType: string) 
   return null;
 }
 
-export function createEmptyNormalizedFeedbackForm(
-  sourceFileName = "",
-): NormalizedFeedbackForm {
-  return {
-    sourceFileName,
-    cityAreaName: "",
-    milanoSkuTested: "",
-    cigaretteFilterType: "",
-    respondentType: "",
-    respondentAgeGroup: "",
-    smokingFrequency: "",
-    drawEffort: "",
-    smokeVolume: "",
-    smokeSmoothness: "",
-    tasteFlavorFeeling: "",
-    aftertasteFeeling: "",
-    filterComfortFeel: "",
-    burningSpeed: "",
-    ashQualityColor: "",
-    tasteFlavorConsistency: "",
-    outerPackVisualAppeal: "",
-    packColourAttractiveness: "",
-    packQualityFeelOpeningStrength: "",
-    priceValueMilanoOdysseyBlack: "",
-    priceValueMilanoOdysseyGold: "",
-    priceValueMilanoCherryVintage: "",
-    overallSatisfactionRating: "",
-    mainReasonForRating: "",
-    wouldBuy: "",
-    wouldRecommend: "",
-    likedMost: "",
-    shouldImprove: "",
-    brandSmokedMostOften: "",
-    confidenceNotes: [],
-    missingOrUnclearFields: [],
-  };
+export function createEmptyNormalizedFeedbackForm(sourceFileName = "") {
+  return createEmptyGtiNormalizedFeedbackForm(sourceFileName);
+}
+
+export function getNormalizedFeedbackFieldValue(
+  normalized: NormalizedFeedbackForm,
+  key: NormalizedFeedbackScalarFieldKey,
+  separator = ", ",
+) {
+  return getNormalizedFieldDisplayValue(normalized, key, separator);
 }
 
 export function toNormalizedFeedbackFieldViews(
@@ -395,7 +258,7 @@ export function toNormalizedFeedbackFieldViews(
   return normalizedFeedbackScalarFieldKeys.map((key) => ({
     id: key,
     label: normalizedFeedbackFieldLabels[key],
-    value: normalized[key],
+    value: getNormalizedFieldDisplayValue(normalized, key),
   }));
 }
 
@@ -405,7 +268,7 @@ export function hasAnyNormalizedFeedbackValue(normalized: NormalizedFeedbackForm
       return false;
     }
 
-    return normalized[key].trim().length > 0;
+    return hasNormalizedFieldValue(normalized, key);
   });
 }
 

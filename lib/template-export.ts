@@ -1,11 +1,17 @@
 import "server-only";
 
 import ExcelJS from "exceljs";
+import { GTI_EXPORT_COLUMNS } from "@/lib/gti/export-columns";
+import {
+  finalizeNormalizedFeedbackForm,
+  logExportFieldNormalization,
+} from "@/lib/gti/finalize";
 import {
   extractionBatchResultSchema,
+  getNormalizedFeedbackFieldValue,
   normalizedFeedbackFieldLabels,
-  normalizedFeedbackScalarFieldKeys,
   type ExtractionBatchResult,
+  type NormalizedFeedbackForm,
   type NormalizedFeedbackFieldKey,
   type ProcessedFeedbackDocument,
 } from "@/lib/types";
@@ -176,10 +182,10 @@ export async function buildExportWorkbook({
 
 function initializeFallbackWorkbook(workbook: ExcelJS.Workbook) {
   const worksheet = workbook.addWorksheet("GTI Feedback Data");
-  worksheet.columns = normalizedFeedbackScalarFieldKeys.map((key) => ({
-    header: normalizedFeedbackFieldLabels[key],
-    key,
-    width: key === "sourceFileName" ? 28 : 24,
+  worksheet.columns = GTI_EXPORT_COLUMNS.map(({ fieldKey, header }) => ({
+    header,
+    key: fieldKey,
+    width: fieldKey === "sourceFileName" ? 28 : 24,
   }));
 }
 
@@ -240,8 +246,8 @@ function detectTargetWorksheet(workbook: ExcelJS.Workbook) {
   const headerRow = worksheet.getRow(1);
 
   if (headerRow.cellCount === 0) {
-    normalizedFeedbackScalarFieldKeys.forEach((key, index) => {
-      headerRow.getCell(index + 1).value = normalizedFeedbackFieldLabels[key];
+    GTI_EXPORT_COLUMNS.forEach(({ header }, index) => {
+      headerRow.getCell(index + 1).value = header;
     });
   }
 
@@ -249,7 +255,7 @@ function detectTargetWorksheet(workbook: ExcelJS.Workbook) {
     worksheet,
     headerRowNumber: 1,
     score: 0,
-    headerCount: normalizedFeedbackScalarFieldKeys.length,
+    headerCount: GTI_EXPORT_COLUMNS.length,
   };
 }
 
@@ -261,9 +267,8 @@ function writeDocumentsIntoWorksheet(
   const headers = getRowHeaders(worksheet, headerRowNumber);
 
   if (headers.length === 0) {
-    normalizedFeedbackScalarFieldKeys.forEach((key, index) => {
-      worksheet.getRow(headerRowNumber).getCell(index + 1).value =
-        normalizedFeedbackFieldLabels[key];
+    GTI_EXPORT_COLUMNS.forEach(({ header }, index) => {
+      worksheet.getRow(headerRowNumber).getCell(index + 1).value = header;
     });
   }
 
@@ -277,10 +282,23 @@ function writeDocumentsIntoWorksheet(
   documents.forEach((document, documentIndex) => {
     const rowNumber = appendStartRow + documentIndex;
     const row = worksheet.getRow(rowNumber);
+    const normalized = finalizeNormalizedFeedbackForm(document.normalized);
 
     resolvedHeaders.forEach((header, index) => {
       const cell = row.getCell(index + 1);
-      cell.value = resolveCellValue(document, header);
+      const fieldKey = resolveTemplateHeader(header);
+      const cellValue = resolveCellValue(normalized, fieldKey);
+      cell.value = cellValue;
+
+      if (fieldKey && fieldKey !== "confidenceNotes" && fieldKey !== "missingOrUnclearFields") {
+        logExportFieldNormalization({
+          context: `live-export:${document.sourceFileName || rowNumber}`,
+          fieldKey,
+          before: document.normalized[fieldKey],
+          after: normalized[fieldKey],
+          written: cellValue,
+        });
+      }
 
       if (styleRow.hasValues) {
         cell.style = cloneStyle(styleRow.getCell(index + 1).style);
@@ -294,22 +312,23 @@ function writeDocumentsIntoWorksheet(
   });
 }
 
-function resolveCellValue(document: ProcessedFeedbackDocument, header: string) {
-  const fieldKey = resolveTemplateHeader(header);
-
+function resolveCellValue(
+  normalized: NormalizedFeedbackForm,
+  fieldKey: NormalizedFeedbackFieldKey | null,
+) {
   if (!fieldKey) {
     return "";
   }
 
   if (fieldKey === "confidenceNotes") {
-    return joinMultivalueCell(document.normalized.confidenceNotes);
+    return joinMultivalueCell(normalized.confidenceNotes);
   }
 
   if (fieldKey === "missingOrUnclearFields") {
-    return joinMultivalueCell(document.normalized.missingOrUnclearFields);
+    return joinMultivalueCell(normalized.missingOrUnclearFields);
   }
 
-  return document.normalized[fieldKey] ?? "";
+  return getNormalizedFeedbackFieldValue(normalized, fieldKey, " | ");
 }
 
 function addExtractionNotesWorksheet(

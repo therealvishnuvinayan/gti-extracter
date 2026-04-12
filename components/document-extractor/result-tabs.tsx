@@ -55,9 +55,9 @@ export function ResultTabs({
     return (
       <Card className="overflow-hidden">
         <CardHeader className="gap-3">
-          <CardTitle>Processing results</CardTitle>
+          <CardTitle>Extraction results</CardTitle>
           <CardDescription>
-            Reviewing submitted forms and preparing structured records.
+            Reading the uploaded GTI forms and preparing structured records.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -82,9 +82,9 @@ export function ResultTabs({
     return (
       <Card>
         <CardHeader className="gap-3">
-          <CardTitle>Processing results</CardTitle>
+          <CardTitle>Extraction results</CardTitle>
           <CardDescription>
-            Results appear here after you process the selected forms.
+            Results appear here after you process the selected GTI forms.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -95,10 +95,10 @@ export function ResultTabs({
               </div>
               <div className="max-w-md space-y-3">
                 <Badge variant="destructive" className="mx-auto w-fit">
-                  Processing error
+                  Extraction error
                 </Badge>
                 <h3 className="text-xl font-semibold tracking-tight text-foreground">
-                  The batch could not be processed
+                  The selected forms could not be extracted
                 </h3>
                 <p className="text-sm leading-6 text-muted-foreground">
                   {errorMessage}
@@ -109,11 +109,11 @@ export function ResultTabs({
             <div className="grid-glow flex min-h-[360px] flex-col items-center justify-center rounded-[28px] border border-dashed border-border/80 bg-white/70 px-6 text-center">
               <div className="max-w-md space-y-3">
                 <h3 className="text-xl font-semibold tracking-tight text-foreground">
-                  Ready to process forms
+                  Ready to extract GTI forms
                 </h3>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  Process the selected files to review captured responses and export
-                  the latest results.
+                  Process the selected files to review captured GTI responses and
+                  export the latest results.
                 </p>
               </div>
             </div>
@@ -129,9 +129,9 @@ export function ResultTabs({
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
             <div className="max-w-xl space-y-2">
-              <CardTitle>Processing results</CardTitle>
+              <CardTitle>Extraction results</CardTitle>
               <CardDescription>
-                Review captured records, save them, or export the latest results.
+                Review GTI feedback records, save them, or export the latest results.
               </CardDescription>
             </div>
             <div className="flex flex-col gap-2 2xl:items-end">

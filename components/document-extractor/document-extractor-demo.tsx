@@ -142,7 +142,7 @@ export function DocumentExtractorDemo() {
       setLastSavedCount(0);
       setStatus("ready");
       toast.success("Forms queued", {
-        description: `${addedCount} file${addedCount === 1 ? "" : "s"} added for processing.`,
+        description: `${addedCount} file${addedCount === 1 ? "" : "s"} added for extraction.`,
       });
     }
 
@@ -239,16 +239,16 @@ export function DocumentExtractorDemo() {
 
         if (savedCount !== null) {
           if (failedCount === 0) {
-            toast.success("Processing complete", {
-              description: `${savedCount} record${savedCount === 1 ? "" : "s"} processed and saved successfully.`,
+            toast.success("Extraction complete", {
+              description: `${savedCount} record${savedCount === 1 ? "" : "s"} extracted and saved successfully.`,
             });
           } else {
-            toast.message("Processing finished", {
+            toast.message("Extraction finished", {
               description: `${completedCount} ready • ${failedCount} need review • ${savedCount} saved`,
             });
           }
         } else {
-          toast.message("Processing finished", {
+          toast.message("Extraction finished", {
             description:
               failedCount === 0
                 ? `${completedCount} ready. Save needs retry.`
@@ -263,11 +263,11 @@ export function DocumentExtractorDemo() {
       const message =
         errorResult.success
           ? errorResult.data.error.message
-          : "The forms could not be processed. Please try again.";
+          : "The forms could not be extracted. Please try again.";
 
       setStatus("error");
       setErrorMessage(message);
-      toast.error("Processing failed", {
+      toast.error("Extraction failed", {
         description: message,
       });
     } catch (error) {
@@ -427,21 +427,21 @@ export function DocumentExtractorDemo() {
                       ? "Saving records"
                       : saveStatus === "error"
                         ? "Save needs retry"
-                        : "Ready for processing"}
+                        : "Ready for extraction"}
                 </Badge>
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  Manage incoming forms and saved records in one place.
+                  Manage GTI form extraction and saved records in one place.
                 </p>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  Use Processing to capture new feedback forms and Records to review
+                  Use Extract to capture GTI feedback forms and Records to review
                   saved results and export the latest data.
                 </p>
               </div>
             </div>
             <TabsList>
-              <TabsTrigger value="extract">Processing</TabsTrigger>
+              <TabsTrigger value="extract">Extract</TabsTrigger>
               <TabsTrigger value="records">Records</TabsTrigger>
             </TabsList>
           </CardContent>

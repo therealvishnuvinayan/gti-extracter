@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { feedbackFieldGroups } from "@/lib/feedback-field-groups";
 import {
+  getNormalizedFeedbackFieldValue,
   hasAnyNormalizedFeedbackValue,
   normalizedFeedbackFieldLabels,
   type ProcessedFeedbackDocument,
@@ -18,7 +19,7 @@ export function StructuredFieldsGrid({ document }: StructuredFieldsGridProps) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={document.status === "completed" ? "success" : "destructive"}>
-          {document.status === "completed" ? "Processing complete" : "Needs review"}
+          {document.status === "completed" ? "Extraction complete" : "Needs review"}
         </Badge>
         <Badge variant="secondary">
           {document.pageCount} page{document.pageCount === 1 ? "" : "s"}
@@ -73,7 +74,8 @@ export function StructuredFieldsGrid({ document }: StructuredFieldsGridProps) {
                 </CardHeader>
                 <CardContent>
                   <p className="whitespace-pre-line text-base font-semibold tracking-tight text-foreground">
-                    {document.normalized[field] || "Not provided"}
+                    {getNormalizedFeedbackFieldValue(document.normalized, field) ||
+                      "Not provided"}
                   </p>
                 </CardContent>
               </Card>

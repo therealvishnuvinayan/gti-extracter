@@ -29,7 +29,9 @@ export function getDocumentNormalizationModel() {
   );
 }
 
-export function getImageInputDetail(model: string) {
+export function getImageInputDetail(
+  model: string,
+): "auto" | "high" | "low" | "original" {
   return model.startsWith("gpt-5.4") ? "original" : "high";
 }
 

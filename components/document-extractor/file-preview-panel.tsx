@@ -37,7 +37,7 @@ export function FilePreviewPanel({
         <div className="space-y-1">
           <CardTitle>Selected forms</CardTitle>
           <CardDescription>
-            Review the forms before processing.
+            Review the GTI feedback forms before processing.
           </CardDescription>
         </div>
       </CardHeader>
@@ -143,11 +143,11 @@ export function FilePreviewPanel({
               No files added yet
             </h3>
             <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
-              Add one or more forms to review them here before processing.
+              Add one or more GTI feedback forms to review them here before processing.
             </p>
             <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-border/70 bg-white/90 px-4 py-2 text-sm text-muted-foreground">
               <FileText className="size-4 text-primary" />
-              Best with scanned, multi-page feedback forms
+              Best with scanned, multi-page GTI feedback forms
             </div>
           </div>
         )}

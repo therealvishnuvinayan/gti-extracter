@@ -259,7 +259,7 @@ export function RecordsTable({ isActive, refreshToken }: RecordsTableProps) {
                 No saved records yet
               </h3>
               <p className="text-sm leading-6 text-muted-foreground">
-                Process feedback forms first. Saved records will appear here
+                Extract GTI feedback forms first. Saved records will appear here
                 automatically.
               </p>
             </div>

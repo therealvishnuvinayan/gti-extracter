@@ -40,21 +40,21 @@ export function ProcessActionBar({
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={statusVariant}>{statusLabel}</Badge>
           <Badge variant="secondary" className="bg-white/80">
-            AI-powered form processing
+            GTI feedback form extraction
           </Badge>
         </div>
         <div className="space-y-1">
           <CardTitle>Process selected forms</CardTitle>
           <CardDescription>
-            Capture responses from each uploaded form and organize them into
-            structured records for review and export.
+            Capture responses from the GTI feedback form template and organize them
+            into structured records for review and export.
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="max-w-lg space-y-2 text-sm leading-6 text-muted-foreground">
           <p>
-            Process one form or many forms at once, then review the captured
+            Process one form or many forms at once, then review the captured GTI
             records and export the latest results when ready.
           </p>
           <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white/80 px-4 py-2">

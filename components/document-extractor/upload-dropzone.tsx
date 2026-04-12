@@ -96,10 +96,10 @@ export function UploadDropzone({
           Upload
         </Badge>
         <div className="space-y-1">
-          <CardTitle>Add feedback forms</CardTitle>
+          <CardTitle>Add GTI feedback forms</CardTitle>
           <CardDescription>
-            Add one or more completed forms. Scanned PDFs are the primary format,
-            and images are supported when needed.
+            Add one or more completed Consumer Product Testing Feedback Forms.
+            Scanned PDFs are the primary format, and images are supported when needed.
           </CardDescription>
         </div>
       </CardHeader>
@@ -133,8 +133,8 @@ export function UploadDropzone({
                 Drag and drop files here
               </p>
               <p className="max-w-md text-sm leading-6 text-muted-foreground">
-                For the best results, upload clear full-page scans that include all
-                marks, comments, and handwritten notes.
+                For the best results, upload clear full-page scans of the GTI form
+                that include all marks, comments, and handwritten notes.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -191,7 +191,7 @@ export function UploadDropzone({
             </div>
           ) : (
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">No feedback forms selected yet</p>
+              <p className="font-medium text-foreground">No GTI feedback forms selected yet</p>
               <p>
                 File count, format, and total size will appear here before processing.
               </p>

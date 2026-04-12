@@ -14,7 +14,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { compactLongTextFieldKeys, feedbackFieldGroups } from "@/lib/feedback-field-groups";
-import { normalizedFeedbackFieldLabels, type ExtractionBatchResult, type ProcessedFeedbackDocument } from "@/lib/types";
+import {
+  getNormalizedFeedbackFieldValue,
+  normalizedFeedbackFieldLabels,
+  type ExtractionBatchResult,
+  type ProcessedFeedbackDocument,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type ExtractionResultsFocusDialogProps = {
@@ -269,7 +274,9 @@ function CompactOverview({ document }: { document: ProcessedFeedbackDocument }) 
                   return null;
                 }
 
-                const value = document.normalized[field] || "Not provided";
+                const value =
+                  getNormalizedFeedbackFieldValue(document.normalized, field) ||
+                  "Not provided";
                 const isLongText =
                   compactLongTextFieldKeys.has(field) ||
                   value.length > 120 ||

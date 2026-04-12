@@ -19,9 +19,9 @@ export type RenderedPdfPage = {
   bytes: Buffer;
 };
 
-const TARGET_LONG_EDGE = 2200;
-const MIN_SCALE = 1.8;
-const MAX_SCALE = 3;
+const TARGET_LONG_EDGE = 2800;
+const MIN_SCALE = 2.2;
+const MAX_SCALE = 3.6;
 
 let pdfJsPromise: Promise<PdfJsModule> | null = null;
 let pdfJsWorkerPromise: Promise<PdfJsWorkerModule> | null = null;
