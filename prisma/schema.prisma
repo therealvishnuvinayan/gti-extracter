@@ -95,6 +95,7 @@ model ExtractionBatchItem {
   status          ExtractionBatchItemStatus @default(queued)
   errorMessage    String?
   fileStoragePath String?
+  fileBytes       Bytes?
   sourceFileName  String?
   feedbackId      String?
   feedback        Feedback?                 @relation(fields: [feedbackId], references: [id], onDelete: SetNull)

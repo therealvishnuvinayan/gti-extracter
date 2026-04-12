@@ -77,11 +77,13 @@ export async function processNextBatchItem(
   let savedRecord = null;
 
   try {
-    if (!claimed.item.fileStoragePath) {
+    if (!claimed.item.fileBytes && !claimed.item.fileStoragePath) {
       throw new Error("The uploaded file is no longer available on the server.");
     }
 
-    const bytes = await readStoredUploadedFile(claimed.item.fileStoragePath);
+    const bytes = claimed.item.fileBytes
+      ? Buffer.from(claimed.item.fileBytes)
+      : await readStoredUploadedFile(claimed.item.fileStoragePath as string);
     processedDocument = await extractSingleFeedbackFile(
       {
         fileName: claimed.item.fileName,
@@ -114,12 +116,13 @@ export async function processNextBatchItem(
             feedbackId: feedback.id,
             sourceFileName:
               processedDocument?.normalized.sourceFileName ||
-              processedDocument?.sourceFileName ||
-              claimed.item!.fileName,
-            finishedAt: new Date(),
-            fileStoragePath: null,
-          },
-        });
+            processedDocument?.sourceFileName ||
+            claimed.item!.fileName,
+          finishedAt: new Date(),
+          fileBytes: null,
+          fileStoragePath: null,
+        },
+      });
 
         const syncedBatch = await syncBatchState(tx, batchId);
 
@@ -139,7 +142,9 @@ export async function processNextBatchItem(
     completedItem = item;
     savedRecord = record;
     try {
-      await removeStoredUploadedFile(claimed.item.fileStoragePath);
+      if (claimed.item.fileStoragePath) {
+        await removeStoredUploadedFile(claimed.item.fileStoragePath);
+      }
     } catch {
       // Cleanup is best-effort. A saved completed record must remain completed.
     }

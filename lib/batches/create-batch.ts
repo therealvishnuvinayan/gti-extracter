@@ -3,7 +3,6 @@ import "server-only";
 import { getPrismaClient } from "@/lib/prisma";
 import { resolveSupportedFileType } from "@/lib/types";
 import { MAX_BATCH_UPLOAD_FILES, serializeBatch, serializeBatchItem, BatchServiceError } from "@/lib/batches/shared";
-import { removeStoredUploadedFile, storeUploadedFile } from "@/lib/batches/store-uploaded-file";
 
 export async function createExtractionBatch(files: File[]) {
   if (files.length === 0) {
@@ -27,7 +26,6 @@ export async function createExtractionBatch(files: File[]) {
       totalFiles: files.length,
     },
   });
-  const storedPaths: string[] = [];
 
   try {
     const itemRows = [];
@@ -51,20 +49,14 @@ export async function createExtractionBatch(files: File[]) {
         );
       }
 
-      const fileStoragePath = await storeUploadedFile({
-        batchId: batch.id,
-        fileName: file.name,
-        bytes: Buffer.from(await file.arrayBuffer()),
-        queueOrder: index,
-      });
-
-      storedPaths.push(fileStoragePath);
+      const fileBytes = Buffer.from(await file.arrayBuffer());
       itemRows.push({
         batchId: batch.id,
         fileName: file.name,
         mimeType,
         status: "queued" as const,
-        fileStoragePath,
+        fileStoragePath: null,
+        fileBytes,
         queueOrder: index,
       });
     }
@@ -89,7 +81,6 @@ export async function createExtractionBatch(files: File[]) {
       items: batchWithItems.items.map(serializeBatchItem),
     };
   } catch (error) {
-    await Promise.allSettled(storedPaths.map((filePath) => removeStoredUploadedFile(filePath)));
     await prisma.extractionBatch.delete({
       where: { id: batch.id },
     }).catch(() => undefined);
